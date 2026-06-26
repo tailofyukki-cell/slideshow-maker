@@ -1,0 +1,286 @@
+# -*- coding: utf-8 -*-
+"""Patch video_generator.py to add telop (caption) support"""
+
+with open('video_generator.py', 'r', encoding='utf-8') as f:
+    src = f.read()
+
+# 1. Add telop_parser import after file_scanner import
+old_import = "from file_scanner import FilePair, VisualItem"
+new_import = (
+    "from file_scanner import FilePair, VisualItem\n"
+    "from telop_parser import (\n"
+    "    load_telop_file, find_telop_file,\n"
+    "    build_telop_drawtext_filters, TelopEntry,\n"
+    ")\n"
+)
+assert old_import in src, "import anchor not found"
+src = src.replace(old_import, new_import, 1)
+
+# 2. Add telop_entries parameter to _build_visual_vf signature
+old_sig = (
+    "def _build_visual_vf(\n"
+    "    visual_path: str,\n"
+    "    is_gif: bool,\n"
+    "    is_video: bool,\n"
+    "    is_animated_gif: bool,\n"
+    "    duration: float,\n"
+    "    w: int,\n"
+    "    h: int,\n"
+    "    fps: int,\n"
+    "    fade: float,\n"
+    "    title_text: Optional[str],\n"
+    "    title_dur: float,\n"
+    "    ken_burns: bool,\n"
+    "    ken_burns_zoom: float,\n"
+    "    chapter_index: int,\n"
+    ") -> str:"
+)
+new_sig = (
+    "def _build_visual_vf(\n"
+    "    visual_path: str,\n"
+    "    is_gif: bool,\n"
+    "    is_video: bool,\n"
+    "    is_animated_gif: bool,\n"
+    "    duration: float,\n"
+    "    w: int,\n"
+    "    h: int,\n"
+    "    fps: int,\n"
+    "    fade: float,\n"
+    "    title_text: Optional[str],\n"
+    "    title_dur: float,\n"
+    "    ken_burns: bool,\n"
+    "    ken_burns_zoom: float,\n"
+    "    chapter_index: int,\n"
+    "    telop_entries: Optional[List['TelopEntry']] = None,\n"
+    "    telop_time_offset: float = 0.0,\n"
+    ") -> str:"
+)
+assert old_sig in src, "signature anchor not found"
+src = src.replace(old_sig, new_sig, 1)
+
+# 3. Add telop filters before fade filters in _build_visual_vf body
+old_fade = (
+    "    fade_out_start = max(0, duration - fade)\n"
+    "    filters.append(f\"fade=t=in:st=0:d={fade:.3f}\")\n"
+    "    filters.append(f\"fade=t=out:st={fade_out_start:.3f}:d={fade:.3f}\")\n"
+    "\n"
+    "    return \",\".join(filters)"
+)
+new_fade = (
+    "    # telop drawtext filters\n"
+    "    if telop_entries:\n"
+    "        telop_filters = build_telop_drawtext_filters(\n"
+    "            entries=telop_entries,\n"
+    "            width=w,\n"
+    "            height=h,\n"
+    "            time_offset=telop_time_offset,\n"
+    "        )\n"
+    "        filters.extend(telop_filters)\n"
+    "\n"
+    "    fade_out_start = max(0, duration - fade)\n"
+    "    filters.append(f\"fade=t=in:st=0:d={fade:.3f}\")\n"
+    "    filters.append(f\"fade=t=out:st={fade_out_start:.3f}:d={fade:.3f}\")\n"
+    "\n"
+    "    return \",\".join(filters)"
+)
+assert old_fade in src, "fade anchor not found"
+src = src.replace(old_fade, new_fade, 1)
+
+# 4. Add telop_entries parameter to _generate_single_visual_clip signature
+old_clip_sig = (
+    "def _generate_single_visual_clip(\n"
+    "    visual_path: str,\n"
+    "    audio_path: str,\n"
+    "    audio_start: float,\n"
+    "    clip_duration: float,\n"
+    "    output_path: str,\n"
+    "    config: GenerationConfig,\n"
+    "    ffmpeg_path: str,\n"
+    "    chapter_index: int,\n"
+    "    is_gif: bool = False,\n"
+    "    is_video: bool = False,\n"
+    "    is_animated_gif: bool = False,\n"
+    "    title_text: Optional[str] = None,\n"
+    ") -> None:"
+)
+new_clip_sig = (
+    "def _generate_single_visual_clip(\n"
+    "    visual_path: str,\n"
+    "    audio_path: str,\n"
+    "    audio_start: float,\n"
+    "    clip_duration: float,\n"
+    "    output_path: str,\n"
+    "    config: GenerationConfig,\n"
+    "    ffmpeg_path: str,\n"
+    "    chapter_index: int,\n"
+    "    is_gif: bool = False,\n"
+    "    is_video: bool = False,\n"
+    "    is_animated_gif: bool = False,\n"
+    "    title_text: Optional[str] = None,\n"
+    "    telop_entries: Optional[List['TelopEntry']] = None,\n"
+    "    telop_time_offset: float = 0.0,\n"
+    ") -> None:"
+)
+assert old_clip_sig in src, "clip signature anchor not found"
+src = src.replace(old_clip_sig, new_clip_sig, 1)
+
+# 5. Pass telop_entries to _build_visual_vf inside _generate_single_visual_clip
+old_clip_vf = (
+    "    vf = _build_visual_vf(\n"
+    "        visual_path=visual_path,\n"
+    "        is_gif=is_gif,\n"
+    "        is_video=is_video,\n"
+    "        is_animated_gif=is_animated_gif,\n"
+    "        duration=clip_duration,\n"
+    "        w=w, h=h, fps=fps, fade=fade,\n"
+    "        title_text=title_text,\n"
+    "        title_dur=title_dur,\n"
+    "        ken_burns=config.ken_burns,\n"
+    "        ken_burns_zoom=config.ken_burns_zoom,\n"
+    "        chapter_index=chapter_index,\n"
+    "    )"
+)
+new_clip_vf = (
+    "    vf = _build_visual_vf(\n"
+    "        visual_path=visual_path,\n"
+    "        is_gif=is_gif,\n"
+    "        is_video=is_video,\n"
+    "        is_animated_gif=is_animated_gif,\n"
+    "        duration=clip_duration,\n"
+    "        w=w, h=h, fps=fps, fade=fade,\n"
+    "        title_text=title_text,\n"
+    "        title_dur=title_dur,\n"
+    "        ken_burns=config.ken_burns,\n"
+    "        ken_burns_zoom=config.ken_burns_zoom,\n"
+    "        chapter_index=chapter_index,\n"
+    "        telop_entries=telop_entries,\n"
+    "        telop_time_offset=telop_time_offset,\n"
+    "    )"
+)
+assert old_clip_vf in src, "clip vf anchor not found"
+src = src.replace(old_clip_vf, new_clip_vf, 1)
+
+# 6. In generate_chapter_video single_mode: load telop and pass to _build_visual_vf
+old_single_vf = (
+    "        vf = _build_visual_vf(\n"
+    "            visual_path=pair.image_path,\n"
+    "            is_gif=is_gif,\n"
+    "            is_video=is_video,\n"
+    "            is_animated_gif=pair.is_animated_gif,\n"
+    "            duration=total_duration,\n"
+    "            w=config.width, h=config.height, fps=config.fps,\n"
+    "            fade=config.fade_duration,\n"
+    "            title_text=pair.base_name,\n"
+    "            title_dur=config.title_duration,\n"
+    "            ken_burns=config.ken_burns,\n"
+    "            ken_burns_zoom=config.ken_burns_zoom,\n"
+    "            chapter_index=chapter_index,\n"
+    "        )"
+)
+new_single_vf = (
+    "        # load telop for this chapter\n"
+    "        _telop_json = find_telop_file(pair.audio_path)\n"
+    "        _telop_entries = load_telop_file(_telop_json) if _telop_json else []\n"
+    "\n"
+    "        vf = _build_visual_vf(\n"
+    "            visual_path=pair.image_path,\n"
+    "            is_gif=is_gif,\n"
+    "            is_video=is_video,\n"
+    "            is_animated_gif=pair.is_animated_gif,\n"
+    "            duration=total_duration,\n"
+    "            w=config.width, h=config.height, fps=config.fps,\n"
+    "            fade=config.fade_duration,\n"
+    "            title_text=pair.base_name,\n"
+    "            title_dur=config.title_duration,\n"
+    "            ken_burns=config.ken_burns,\n"
+    "            ken_burns_zoom=config.ken_burns_zoom,\n"
+    "            chapter_index=chapter_index,\n"
+    "            telop_entries=_telop_entries,\n"
+    "            telop_time_offset=0.0,\n"
+    "        )"
+)
+assert old_single_vf in src, "single vf anchor not found"
+src = src.replace(old_single_vf, new_single_vf, 1)
+
+# 7. In generate_chapter_video multi_mode: load telop before clip loop, pass per-clip offset
+old_multi_items = (
+    "        items = pair.visual_items\n"
+    "        n = len(items)\n"
+    "        clip_duration = total_duration / n   # 均等分割\n"
+    "\n"
+    "        clip_paths = []\n"
+    "        for item_idx, item in enumerate(items):\n"
+    "            clip_path = os.path.join(\n"
+    "                temp_dir, f'chapter_{chapter_index:04d}_clip_{item_idx:04d}.mp4'\n"
+    "            )\n"
+    "            audio_start = clip_duration * item_idx\n"
+    "\n"
+    "            # タイトルはチャプターの先頭クリップのみ表示\n"
+    "            title = pair.base_name if item_idx == 0 else None\n"
+    "\n"
+    "            # ケン・バーンズのパターンはクリップごとに進める\n"
+    "            kb_index = chapter_index * n + item_idx\n"
+    "\n"
+    "            _generate_single_visual_clip(\n"
+    "                visual_path=item.path,\n"
+    "                audio_path=pair.audio_path,\n"
+    "                audio_start=audio_start,\n"
+    "                clip_duration=clip_duration,\n"
+    "                output_path=clip_path,\n"
+    "                config=config,\n"
+    "                ffmpeg_path=ffmpeg_path,\n"
+    "                chapter_index=kb_index,\n"
+    "                is_gif=item.ext == '.gif',\n"
+    "                is_video=item.is_video_input,\n"
+    "                is_animated_gif=item.is_animated_gif,\n"
+    "                title_text=title,\n"
+    "            )\n"
+    "            clip_paths.append(clip_path)"
+)
+new_multi_items = (
+    "        items = pair.visual_items\n"
+    "        n = len(items)\n"
+    "        clip_duration = total_duration / n   # 均等分割\n"
+    "\n"
+    "        # load telop for this chapter (shared across all clips)\n"
+    "        _telop_json = find_telop_file(pair.audio_path)\n"
+    "        _telop_entries = load_telop_file(_telop_json) if _telop_json else []\n"
+    "\n"
+    "        clip_paths = []\n"
+    "        for item_idx, item in enumerate(items):\n"
+    "            clip_path = os.path.join(\n"
+    "                temp_dir, f'chapter_{chapter_index:04d}_clip_{item_idx:04d}.mp4'\n"
+    "            )\n"
+    "            audio_start = clip_duration * item_idx\n"
+    "\n"
+    "            # タイトルはチャプターの先頭クリップのみ表示\n"
+    "            title = pair.base_name if item_idx == 0 else None\n"
+    "\n"
+    "            # ケン・バーンズのパターンはクリップごとに進める\n"
+    "            kb_index = chapter_index * n + item_idx\n"
+    "\n"
+    "            _generate_single_visual_clip(\n"
+    "                visual_path=item.path,\n"
+    "                audio_path=pair.audio_path,\n"
+    "                audio_start=audio_start,\n"
+    "                clip_duration=clip_duration,\n"
+    "                output_path=clip_path,\n"
+    "                config=config,\n"
+    "                ffmpeg_path=ffmpeg_path,\n"
+    "                chapter_index=kb_index,\n"
+    "                is_gif=item.ext == '.gif',\n"
+    "                is_video=item.is_video_input,\n"
+    "                is_animated_gif=item.is_animated_gif,\n"
+    "                title_text=title,\n"
+    "                telop_entries=_telop_entries,\n"
+    "                telop_time_offset=audio_start,\n"
+    "            )\n"
+    "            clip_paths.append(clip_path)"
+)
+assert old_multi_items in src, "multi items anchor not found"
+src = src.replace(old_multi_items, new_multi_items, 1)
+
+with open('video_generator.py', 'w', encoding='utf-8') as f:
+    f.write(src)
+
+print("Patch applied successfully")
