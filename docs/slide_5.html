@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            background-color: #FFFFFF;
+            font-family: 'Noto Sans JP', sans-serif;
+            color: #333333;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .header {
+            width: 100%;
+            padding-top: 60px;
+            padding-left: 80px;
+            padding-right: 80px;
+        }
+        .slide-title {
+            font-size: 32px;
+            font-weight: 800;
+            color: #0A192F;
+            margin-bottom: 15px;
+        }
+        .divider {
+            width: 100%;
+            height: 6px;
+            background-color: #0066CC;
+        }
+        .content {
+            padding-top: 40px;
+            padding-left: 80px;
+            padding-right: 80px;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .subtitle {
+            font-size: 20px;
+            font-weight: 800;
+            color: #0A192F;
+            margin-bottom: 10px; /* reduced from 30px to save vertical space */
+        }
+        .settings-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0px; /* removed extra gap */
+        }
+        .settings-table th, .settings-table td {
+            border: 2px solid #0A192F;
+            padding-top: 10px; /* reduced from 15px */
+            padding-bottom: 10px; /* reduced from 15px */
+            padding-left: 20px;
+            padding-right: 20px;
+            text-align: left;
+        }
+        .settings-table th {
+            background-color: #F4F6F8;
+            color: #0066CC;
+            font-size: 18px;
+            font-weight: 800;
+        }
+        .settings-table td {
+            font-size: 16px;
+            font-weight: 400;
+            line-height: 1.5;
+        }
+        .settings-table td strong {
+            font-weight: 800;
+            color: #0A192F;
+        }
+        .accent-rect {
+            position: absolute;
+            top: 0;
+            right: 80px;
+            width: 120px;
+            height: 20px;
+            background-color: #0066CC;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="accent-rect"></div>
+        <div class="header">
+            <h2 class="slide-title">GUIモード — 出力設定の詳細</h2>
+            <div class="divider"></div>
+        </div>
+        <div class="content">
+            <h3 class="subtitle">③ 出力設定で動画の見た目を細かくカスタマイズできる</h3>
+            
+            <table class="settings-table">
+                <thead>
+                    <tr>
+                        <th style="width: 25%;">設定項目</th>
+                        <th style="width: 35%;">内容</th>
+                        <th style="width: 40%;">選択肢</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>解像度プリセット</strong></td>
+                        <td>動画の縦横サイズ</td>
+                        <td>YouTube横型(1920×1080) / TikTok縦型(1080×1920) / Instagram正方形(1080×1080) / 4K / 720p 等6種類</td>
+                    </tr>
+                    <tr>
+                        <td><strong>ケン・バーンズ効果</strong></td>
+                        <td>静止画にズーム・パン動作を追加</td>
+                        <td>ON / OFF</td>
+                    </tr>
+                    <tr>
+                        <td><strong>ファイル名タイトル表示</strong></td>
+                        <td>各チャプター先頭にファイル名を白文字でオーバーレイ</td>
+                        <td>ON（デフォルト）/ OFF</td>
+                    </tr>
+                    <tr>
+                        <td><strong>オーディオビジュアライザー</strong></td>
+                        <td>音声波形を動画に透かしとして重ねる</td>
+                        <td>OFF / 波形 / 周波数バー / スペクトログラム / ベクタースコープ</td>
+                    </tr>
+                    <tr>
+                        <td><strong>ビジュアライザーカラー</strong></td>
+                        <td>ビジュアライザーの色テーマ</td>
+                        <td>単色（カラーピッカー）/ レインボー / ファイア / ネオン / ゴールド</td>
+                    </tr>
+                    <tr>
+                        <td><strong>出力先ファイル</strong></td>
+                        <td>生成するMP4のパス</td>
+                        <td>デフォルト: 入力フォルダ内の output.mp4</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

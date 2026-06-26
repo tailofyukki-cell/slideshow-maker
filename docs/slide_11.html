@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            background-color: #FFFFFF;
+            font-family: 'Noto Sans JP', sans-serif;
+            color: #333333;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .header {
+            width: 100%;
+            padding-top: 60px;
+            padding-left: 80px;
+            padding-right: 80px;
+        }
+        .slide-title {
+            font-size: 32px;
+            font-weight: 800;
+            color: #0A192F;
+            margin-bottom: 15px;
+        }
+        .divider {
+            width: 100%;
+            height: 6px;
+            background-color: #0066CC;
+        }
+        .content {
+            padding-top: 40px;
+            padding-left: 80px;
+            padding-right: 80px;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .subtitle {
+            font-size: 20px;
+            font-weight: 800;
+            color: #0A192F;
+            margin-bottom: 20px;
+        }
+        .error-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 2px solid #0A192F;
+            margin-bottom: 30px;
+        }
+        .error-table th, .error-table td {
+            border: 2px solid #0A192F;
+            padding-top: 12px;
+            padding-left: 15px;
+            padding-right: 15px;
+            padding-bottom: 12px;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+        .error-table th {
+            background-color: #F4F6F8;
+            color: #0066CC;
+            font-weight: 800;
+            text-align: left;
+        }
+        .error-table td {
+            font-weight: 400;
+        }
+        .error-name {
+            font-weight: 800;
+            color: #0A192F;
+        }
+        .code-inline {
+            font-family: monospace;
+            background-color: #F4F6F8;
+            padding-left: 4px;
+            padding-right: 4px;
+            border: 1px solid #CCCCCC;
+        }
+        .footer-note {
+            font-size: 16px;
+            font-weight: 800;
+            color: #0A192F;
+            background-color: #F8F9FA;
+            border-left: 4px solid #0066CC;
+            padding-top: 15px;
+            padding-bottom: 15px;
+            padding-left: 20px;
+            padding-right: 20px;
+            display: flex;
+            align-items: center;
+            margin-top: auto;
+            margin-bottom: 40px;
+        }
+        .footer-icon {
+            color: #0066CC;
+            margin-right: 15px;
+            font-size: 20px;
+        }
+        .accent-rect {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 200px;
+            height: 20px;
+            background-color: #0066CC;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="header">
+            <h2 class="slide-title">エラーと対処法</h2>
+            <div class="divider"></div>
+        </div>
+        <div class="content">
+            <h3 class="subtitle">よくあるエラーと解決方法</h3>
+            
+            <table class="error-table">
+                <thead>
+                    <tr>
+                        <th style="width: 25%;">エラー内容</th>
+                        <th style="width: 35%;">原因</th>
+                        <th style="width: 40%;">対処法</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="error-name">完全ペアが0件</td>
+                        <td>音声と画像のファイル名（拡張子なし）が一致していない</td>
+                        <td>ファイル名を確認。全角/半角の違いも別名として扱われる</td>
+                    </tr>
+                    <tr>
+                        <td class="error-name">FFmpegが見つからない</td>
+                        <td><span class="code-inline">ffmpeg.exe</span> / <span class="code-inline">ffprobe.exe</span> が配置されていない</td>
+                        <td>SlideshowMaker.exeと同じフォルダに配置する</td>
+                    </tr>
+                    <tr>
+                        <td class="error-name">出力先に書き込めない</td>
+                        <td>フォルダのアクセス権限がない</td>
+                        <td>別のフォルダを出力先に指定する</td>
+                    </tr>
+                    <tr>
+                        <td class="error-name">動画生成中にエラー</td>
+                        <td>音声ファイルが破損している可能性</td>
+                        <td>別の音声ファイルで試す</td>
+                    </tr>
+                    <tr>
+                        <td class="error-name">文字化け（CP932エラー）</td>
+                        <td>日本語ファイル名の文字コード問題</td>
+                        <td>最新版では自動的にUTF-8で処理されるため再試行</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="footer-note">
+                <i class="fas fa-info-circle footer-icon"></i>
+                <span>FFmpegのエラーログはアプリ下部のログエリアに表示されます。詳細なエラー内容を確認して対処してください。</span>
+            </div>
+        </div>
+        <div class="accent-rect"></div>
+    </div>
+</body>
+</html>

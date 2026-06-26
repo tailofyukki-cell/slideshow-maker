@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            background-color: #FFFFFF;
+            font-family: 'Noto Sans JP', sans-serif;
+            color: #333333;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .header {
+            width: 100%;
+            padding-top: 60px;
+            padding-left: 80px;
+            padding-right: 80px;
+        }
+        .slide-title {
+            font-size: 32px;
+            font-weight: 800;
+            color: #0A192F;
+            margin-bottom: 15px;
+        }
+        .divider {
+            width: 100%;
+            height: 6px;
+            background-color: #0066CC;
+        }
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 50px;
+            padding-top: 40px;
+            padding-left: 80px;
+            padding-right: 80px;
+            flex-grow: 1;
+        }
+        .subtitle {
+            font-size: 20px;
+            font-weight: 800;
+            color: #0A192F;
+            margin-bottom: 20px;
+            grid-column: 1 / -1;
+        }
+        .text-section {
+            display: flex;
+            flex-direction: column;
+        }
+        .body-text {
+            font-size: 16px;
+            font-weight: 400;
+            line-height: 1.8;
+            margin-bottom: 20px;
+        }
+        .info-box {
+            border-left: 4px solid #0066CC;
+            padding-left: 15px;
+            padding-top: 10px;
+            padding-bottom: 10px;
+            background-color: #F8F9FA;
+            margin-top: 20px;
+        }
+        .info-text {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #333333;
+        }
+        .code-block-container {
+            display: flex;
+            flex-direction: column;
+        }
+        .code-title {
+            font-size: 16px;
+            font-weight: 800;
+            color: #0A192F;
+            margin-bottom: 10px;
+        }
+        pre {
+            border: 2px solid #0A192F;
+            background-color: #F4F6F8;
+            padding-top: 20px;
+            padding-left: 20px;
+            padding-right: 20px;
+            padding-bottom: 20px;
+            font-family: monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #333333;
+            white-space: pre-wrap;
+        }
+        .accent-rect {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 200px;
+            height: 20px;
+            background-color: #0066CC;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="header">
+            <h2 class="slide-title">高度な機能 — 複数画像モード</h2>
+            <div class="divider"></div>
+        </div>
+        <div class="content">
+            <h3 class="subtitle">1つの音声に複数の画像を対応させて、スライドショー風の動画を作れる</h3>
+            
+            <div class="text-section">
+                <p class="body-text">
+                    ファイル名に <strong>_001</strong>、<strong>_002</strong> のような連番サフィックスを付けると、1つの音声に対して複数の画像を割り当てることができます。<br><br>
+                    これにより、曲の進行に合わせて画像が切り替わるスライドショー風の動画を簡単に作成できます。
+                </p>
+                
+                <div class="info-box">
+                    <p class="info-text">
+                        <i class="fas fa-info-circle" style="color: #0066CC; margin-right: 8px;"></i>
+                        この場合、音声の長さを画像の枚数で均等に割り、各画像が順番に表示されます。表示時間を個別に指定したい場合は「タイミング制御」機能を使います。
+                    </p>
+                </div>
+            </div>
+
+            <div class="code-block-container">
+                <div class="code-title">フォルダ構成例</div>
+                <pre><code>my_folder/
+├── 001.mp3
+├── 001_001.png   ← 最初の画像
+├── 001_002.png   ← 2番目の画像
+└── 001_003.png   ← 3番目の画像</code></pre>
+            </div>
+        </div>
+        <div class="accent-rect"></div>
+    </div>
+</body>
+</html>

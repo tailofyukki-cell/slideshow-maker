@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            background-color: #FFFFFF;
+            font-family: 'Noto Sans JP', sans-serif;
+            color: #333333;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .header {
+            width: 100%;
+            padding-top: 60px;
+            padding-left: 80px;
+            padding-right: 80px;
+        }
+        .slide-title {
+            font-size: 32px;
+            font-weight: 800;
+            color: #0A192F;
+            margin-bottom: 15px;
+        }
+        .divider {
+            width: 100%;
+            height: 6px;
+            background-color: #0066CC;
+        }
+        .content {
+            padding-top: 40px;
+            padding-left: 80px;
+            padding-right: 80px;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .subtitle {
+            font-size: 20px;
+            font-weight: 800;
+            color: #0A192F;
+            margin-bottom: 15px;
+        }
+        .body-text {
+            font-size: 16px;
+            font-weight: 400;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+        .color-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 2px solid #0A192F;
+            margin-bottom: 25px;
+        }
+        .color-table th, .color-table td {
+            border: 2px solid #0A192F;
+            padding-top: 12px;
+            padding-left: 15px;
+            padding-right: 15px;
+            padding-bottom: 12px;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+        .color-table th {
+            background-color: #F4F6F8;
+            color: #0066CC;
+            font-weight: 800;
+            text-align: left;
+        }
+        .color-table td {
+            font-weight: 400;
+        }
+        .mode-name {
+            font-weight: 800;
+            color: #0A192F;
+        }
+        .footer-note {
+            font-size: 16px;
+            font-weight: 800;
+            color: #0066CC;
+            display: flex;
+            align-items: center;
+            margin-top: auto;
+            margin-bottom: 40px;
+        }
+        .footer-icon {
+            margin-right: 10px;
+            font-size: 18px;
+        }
+        .accent-rect {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 200px;
+            height: 20px;
+            background-color: #0066CC;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="header">
+            <h2 class="slide-title">オーディオビジュアライザーのカラーモード</h2>
+            <div class="divider"></div>
+        </div>
+        <div class="content">
+            <h3 class="subtitle">レインボー・ファイア・ネオン・ゴールドで動画を華やかに演出できる</h3>
+            <p class="body-text">
+                ビジュアライザーを有効にすると「色」コンボボックスが使えるようになります。<br>
+                単色以外のカラーモードでは、時間とともに色が動的に変化します。
+            </p>
+            
+            <table class="color-table">
+                <thead>
+                    <tr>
+                        <th style="width: 18%;">カラーモード</th>
+                        <th style="width: 32%;">見た目</th>
+                        <th style="width: 50%;">変化の仕組み</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="mode-name">単色</td>
+                        <td>選択した1色で固定表示</td>
+                        <td>カラーピッカーで任意の色を選択可能</td>
+                    </tr>
+                    <tr>
+                        <td class="mode-name">レインボー</td>
+                        <td>虹色が流れるように変化</td>
+                        <td>R/G/Bを120°ずつ位相をずらしたsin波で着色（約6秒で一周）</td>
+                    </tr>
+                    <tr>
+                        <td class="mode-name">ファイア</td>
+                        <td>赤→オレンジ→黄の炎色でゆらゆら</td>
+                        <td>R=全輝度、G=sin波で揺れる、B=0</td>
+                    </tr>
+                    <tr>
+                        <td class="mode-name">ネオン</td>
+                        <td>シアン→マゼンタ→白を高速切り替え</td>
+                        <td>高速sin波（約3秒で一周）</td>
+                    </tr>
+                    <tr>
+                        <td class="mode-name">ゴールド</td>
+                        <td>黄金色で微妙に輝く</td>
+                        <td>R=全輝度、G=黄金色範囲でsin揺れ、B=微小</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="footer-note">
+                <i class="fas fa-check-square footer-icon"></i>
+                <span>4つのビジュアライザースタイル（波形・周波数バー・スペクトログラム・ベクタースコープ）すべてに対応しています。</span>
+            </div>
+        </div>
+        <div class="accent-rect"></div>
+    </div>
+</body>
+</html>

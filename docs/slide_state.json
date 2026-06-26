@@ -1,0 +1,156 @@
+{
+  "project_info": {
+    "title": "SlideshowMaker 操作説明書",
+    "created": 1782480514.8555956,
+    "last_updated": 1782480672.2841725,
+    "total_slides": 12
+  },
+  "slides": [
+    {
+      "id": "slide_1",
+      "state": "edited",
+      "pageNum": 1
+    },
+    {
+      "id": "slide_2",
+      "state": "edited",
+      "pageNum": 2
+    },
+    {
+      "id": "slide_3",
+      "state": "edited",
+      "pageNum": 3
+    },
+    {
+      "id": "slide_4",
+      "state": "edited",
+      "pageNum": 4
+    },
+    {
+      "id": "slide_5",
+      "state": "edited",
+      "pageNum": 5
+    },
+    {
+      "id": "slide_6",
+      "state": "edited",
+      "pageNum": 6
+    },
+    {
+      "id": "slide_7",
+      "state": "edited",
+      "pageNum": 7
+    },
+    {
+      "id": "slide_8",
+      "state": "edited",
+      "pageNum": 8
+    },
+    {
+      "id": "slide_9",
+      "state": "edited",
+      "pageNum": 9
+    },
+    {
+      "id": "slide_10",
+      "state": "edited",
+      "pageNum": 10
+    },
+    {
+      "id": "slide_11",
+      "state": "edited",
+      "pageNum": 11
+    },
+    {
+      "id": "slide_12",
+      "state": "edited",
+      "pageNum": 12
+    }
+  ],
+  "outline": [
+    {
+      "id": "slide_1",
+      "title": "SlideshowMaker 操作説明書",
+      "summary": "SlideshowMakerの概要と対応環境を示すタイトルスライド",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "slide_2",
+      "title": "SlideshowMakerとは？",
+      "summary": "自動ペアリングやプリセット機能など、アプリの主な特徴を解説するスライド",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "slide_3",
+      "title": "事前準備 — ファイルの配置ルール",
+      "summary": "音声と画像を同じファイル名にするペアリングのルールと対応形式を解説するスライド",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "slide_4",
+      "title": "GUIモード — 起動と基本操作の流れ",
+      "summary": "GUI画面での4つのステップとスキャン結果の見方を解説するスライド",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "slide_5",
+      "title": "GUIモード — 出力設定の詳細",
+      "summary": "解像度やエフェクトなど、出力設定でカスタマイズできる項目を解説するスライド",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "slide_6",
+      "title": "オーディオビジュアライザーのカラーモード",
+      "summary": "単色やレインボーなど、5つのカラーモードとその仕組みを解説するスライド",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "slide_7",
+      "title": "高度な機能 — 複数画像モード",
+      "summary": "連番サフィックスを使って1つの音声に複数の画像を対応させる方法を解説するスライド",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "slide_8",
+      "title": "高度な機能 — タイミング制御とテロップ",
+      "summary": "JSONファイルを使って表示時間やテキストオーバーレイを制御する方法を解説するスライド",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "slide_9",
+      "title": "CLIモード — コマンドラインからの使い方",
+      "summary": "CLIモードの基本コマンドと使用例を解説するスライド",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "slide_10",
+      "title": "CLIモード — 主要オプション一覧",
+      "summary": "CLIモードで利用可能なオプションとその説明を一覧で解説するスライド",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "slide_11",
+      "title": "エラーと対処法",
+      "summary": "よくあるエラーの原因と対処法を解説するスライド",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    },
+    {
+      "id": "slide_12",
+      "title": "まとめ — SlideshowMakerでできること",
+      "summary": "アプリのメリットと最初のステップをまとめるクロージングスライド",
+      "image_plan": "Use a suitable image if needed",
+      "slide_template_key": ""
+    }
+  ]
+}

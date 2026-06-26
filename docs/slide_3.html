@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            background-color: #FFFFFF;
+            font-family: 'Noto Sans JP', sans-serif;
+            color: #333333;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .header {
+            width: 100%;
+            padding-top: 60px;
+            padding-left: 80px;
+            padding-right: 80px;
+        }
+        .slide-title {
+            font-size: 32px;
+            font-weight: 800;
+            color: #0A192F;
+            margin-bottom: 15px;
+        }
+        .divider {
+            width: 100%;
+            height: 6px;
+            background-color: #0066CC;
+        }
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 50px;
+            padding-top: 40px;
+            padding-left: 80px;
+            padding-right: 80px;
+            flex-grow: 1;
+        }
+        .subtitle {
+            font-size: 20px;
+            font-weight: 800;
+            color: #0A192F;
+            margin-bottom: 20px;
+            grid-column: 1 / -1;
+        }
+        .text-section {
+            display: flex;
+            flex-direction: column;
+        }
+        .body-text {
+            font-size: 16px;
+            font-weight: 400;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .rule-list {
+            list-style: none;
+            margin-top: 10px;
+        }
+        .rule-item {
+            font-size: 16px;
+            line-height: 1.5;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: flex-start;
+        }
+        .rule-icon {
+            color: #0066CC;
+            margin-right: 10px;
+            margin-top: 4px;
+            font-size: 12px;
+        }
+        .code-block-container {
+            display: flex;
+            flex-direction: column;
+        }
+        .code-title {
+            font-size: 16px;
+            font-weight: 800;
+            color: #0A192F;
+            margin-bottom: 10px;
+        }
+        pre {
+            border: 2px solid #0A192F;
+            background-color: #F4F6F8;
+            padding-top: 20px;
+            padding-left: 20px;
+            padding-right: 20px;
+            padding-bottom: 20px;
+            font-family: monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #333333;
+            white-space: pre-wrap;
+        }
+        .accent-rect {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 200px;
+            height: 20px;
+            background-color: #0066CC;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="header">
+            <h2 class="slide-title">事前準備 — ファイルの配置ルール</h2>
+            <div class="divider"></div>
+        </div>
+        <div class="content">
+            <h3 class="subtitle">音声と画像は「同じファイル名（拡張子なし）」でペアにする</h3>
+            
+            <div class="text-section">
+                <p class="body-text">
+                    SlideshowMakerは、拡張子を除いたファイル名が一致する音声と画像を自動的にペアとして認識します。
+                </p>
+                <div class="code-title">注意点と対応形式</div>
+                <ul class="rule-list">
+                    <li class="rule-item">
+                        <i class="fas fa-exclamation-triangle rule-icon"></i>
+                        <span>全角・半角の違いも別ファイルとして扱われます。</span>
+                    </li>
+                    <li class="rule-item">
+                        <i class="fas fa-info-circle rule-icon"></i>
+                        <span>音声のみ・画像のみのファイルはスキャン結果に表示されますが、動画生成の対象外となります。</span>
+                    </li>
+                    <li class="rule-item">
+                        <i class="fas fa-music rule-icon"></i>
+                        <span><strong>対応音声:</strong> MP3 / WAV / FLAC / OGG / AAC / M4A / WMA</span>
+                    </li>
+                    <li class="rule-item">
+                        <i class="fas fa-image rule-icon"></i>
+                        <span><strong>対応画像:</strong> JPG / PNG / WebP / AVIF / BMP / TIFF / GIF（アニメーション対応）</span>
+                    </li>
+                    <li class="rule-item">
+                        <i class="fas fa-film rule-icon"></i>
+                        <span><strong>対応動画（ビジュアル素材）:</strong> MP4 / MOV / AVI / MKV / WebM / FLV / WMV</span>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="code-block-container">
+                <div class="code-title">フォルダ構成例</div>
+                <pre><code>my_folder/
+├── 001.mp3        ← 音声
+├── 001.jpg        ← 対応する画像（同じ名前）
+├── chapter02.mp3
+├── chapter02.png
+└── title_bgm.mp3  ← 画像がない場合は無視される</code></pre>
+            </div>
+        </div>
+        <div class="accent-rect"></div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            background-color: #FFFFFF;
+            font-family: 'Noto Sans JP', sans-serif;
+            color: #333333;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .header {
+            width: 100%;
+            padding-top: 60px;
+            padding-left: 80px;
+            padding-right: 80px;
+        }
+        .slide-title {
+            font-size: 32px;
+            font-weight: 800;
+            color: #0A192F;
+            margin-bottom: 15px;
+        }
+        .divider {
+            width: 100%;
+            height: 6px;
+            background-color: #0066CC;
+        }
+        .content {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr;
+            gap: 60px;
+            padding-top: 40px;
+            padding-left: 80px;
+            padding-right: 80px;
+            flex-grow: 1;
+        }
+        .subtitle {
+            font-size: 20px;
+            font-weight: 800;
+            color: #0A192F;
+            margin-bottom: 30px;
+            grid-column: 1 / -1;
+        }
+        .steps-container {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+        .step-item {
+            display: flex;
+            align-items: flex-start;
+        }
+        .step-number {
+            width: 40px;
+            height: 40px;
+            background-color: #0A192F;
+            color: #FFFFFF;
+            font-size: 20px;
+            font-weight: 800;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-right: 20px;
+            flex-shrink: 0;
+        }
+        .step-content {
+            display: flex;
+            flex-direction: column;
+            padding-top: 5px;
+        }
+        .step-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: #0066CC;
+            margin-bottom: 5px;
+        }
+        .step-desc {
+            font-size: 16px;
+            font-weight: 400;
+            line-height: 1.6;
+        }
+        .info-box {
+            border: 2px solid #0A192F;
+            padding-top: 30px;
+            padding-left: 30px;
+            padding-right: 30px;
+            padding-bottom: 30px;
+            background-color: #F8F9FA;
+            height: fit-content;
+        }
+        .info-title {
+            font-size: 20px;
+            font-weight: 800;
+            color: #0A192F;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #0066CC;
+            padding-bottom: 10px;
+            display: inline-block;
+        }
+        .info-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .info-item {
+            display: flex;
+            align-items: flex-start;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+        .color-box {
+            width: 20px;
+            height: 20px;
+            margin-right: 15px;
+            margin-top: 3px;
+            flex-shrink: 0;
+            border: 1px solid #333;
+        }
+        .color-green {
+            background-color: #4CAF50;
+        }
+        .color-yellow {
+            background-color: #FFC107;
+        }
+        .accent-rect {
+            position: absolute;
+            top: 0;
+            right: 80px;
+            width: 60px;
+            height: 20px;
+            background-color: #0066CC;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="accent-rect"></div>
+        <div class="header">
+            <h2 class="slide-title">GUIモード — 起動と基本操作の流れ</h2>
+            <div class="divider"></div>
+        </div>
+        <div class="content">
+            <h3 class="subtitle">4ステップで動画を生成できる</h3>
+            
+            <div class="steps-container">
+                <div class="step-item">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <div class="step-title">① 入力フォルダ選択</div>
+                        <div class="step-desc">「フォルダを選択」ボタンでファイルが入ったフォルダを指定します。</div>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <div class="step-title">② ファイルペア一覧</div>
+                        <div class="step-desc">自動スキャンが実行され、動画生成対象（完全ペア）が表示されます。</div>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <div class="step-title">③ 出力設定</div>
+                        <div class="step-desc">解像度・エフェクト・ビジュアライザー等のオプションを設定します。</div>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <div class="step-title">④ 動画生成</div>
+                        <div class="step-desc">「▶ 動画を生成する」ボタンをクリックし、進捗バーが100%になれば完了です。</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-box">
+                <div class="info-title">スキャン結果の見方</div>
+                <ul class="info-list">
+                    <li class="info-item">
+                        <div class="color-box color-green"></div>
+                        <div>
+                            <strong>緑色の行 = 完全ペア（音声＋画像）</strong><br>
+                            動画生成の対象となります。
+                        </div>
+                    </li>
+                    <li class="info-item">
+                        <div class="color-box color-yellow"></div>
+                        <div>
+                            <strong>黄色の行 = 音声のみ、または画像のみ</strong><br>
+                            ペアが見つからないため、動画生成の対象外となります。
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

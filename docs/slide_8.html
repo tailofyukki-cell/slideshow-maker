@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        .slide-container {
+            width: 1280px;
+            min-height: 720px;
+            background-color: #FFFFFF;
+            font-family: 'Noto Sans JP', sans-serif;
+            color: #333333;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .header {
+            width: 100%;
+            padding-top: 60px;
+            padding-left: 80px;
+            padding-right: 80px;
+        }
+        .slide-title {
+            font-size: 32px;
+            font-weight: 800;
+            color: #0A192F;
+            margin-bottom: 15px;
+        }
+        .divider {
+            width: 100%;
+            height: 6px;
+            background-color: #0066CC;
+        }
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            padding-top: 40px;
+            padding-left: 80px;
+            padding-right: 80px;
+        }
+        .subtitle {
+            font-size: 20px;
+            font-weight: 800;
+            color: #0A192F;
+            margin-bottom: 20px;
+            grid-column: 1 / -1;
+        }
+        .section {
+            display: flex;
+            flex-direction: column;
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: #0066CC;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .section-icon {
+            margin-right: 10px;
+            font-size: 16px;
+        }
+        .body-text {
+            font-size: 16px;
+            font-weight: 400;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        pre {
+            border: 2px solid #0A192F;
+            background-color: #F4F6F8;
+            padding-top: 20px;
+            padding-left: 20px;
+            padding-right: 20px;
+            padding-bottom: 20px;
+            font-family: monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #333333;
+            white-space: pre-wrap;
+            flex-grow: 1;
+        }
+        .accent-rect {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 200px;
+            height: 20px;
+            background-color: #0066CC;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <div class="header">
+            <h2 class="slide-title">高度な機能 — タイミング制御とテロップ</h2>
+            <div class="divider"></div>
+        </div>
+        <div class="content">
+            <h3 class="subtitle">JSONファイルを配置するだけで表示時間・テキストオーバーレイを細かく制御できる</h3>
+            
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-clock section-icon"></i>
+                    タイミング制御（{ベース名}_timing.json）
+                </div>
+                <p class="body-text">
+                    各画像の表示秒数を個別に指定できます。複数画像モードと組み合わせて、スライドごとの長さを調整する際に使用します。
+                </p>
+                <pre><code>[
+  {"image": "001_001.png", "duration": 10.0},
+  {"image": "001_002.png", "duration": 15.0},
+  {"image": "001_003.png", "duration": 5.0}
+]</code></pre>
+            </div>
+
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-font section-icon"></i>
+                    テロップ（{ベース名}.json）
+                </div>
+                <p class="body-text">
+                    動画の任意の時間帯にテキストを表示できます。フェードイン・アウトアニメーションや、表示位置・サイズ・色の指定にも対応しています。
+                </p>
+                <pre><code>[
+  {
+    "text": "テロップテキスト",
+    "start": 1.0, "end": 4.0,
+    "position": "bottom", "size": 60, "color": "white",
+    "animation": {
+      "type": "fade", 
+      "in_duration": 0.5, 
+      "out_duration": 0.5
+    }
+  }
+]</code></pre>
+            </div>
+        </div>
+        <div class="accent-rect"></div>
+    </div>
+</body>
+</html>
