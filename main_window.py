@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView,
     QProgressBar, QTextEdit, QGroupBox, QSplitter,
     QMessageBox, QSizePolicy, QFrame,
-    QComboBox, QCheckBox
+    QComboBox, QCheckBox, QDoubleSpinBox
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSize
 from PyQt5.QtGui import QFont, QColor, QPalette, QIcon
@@ -21,6 +21,7 @@ from timing_parser import find_timing_file, get_timing_summary
 from video_generator import (
     generate_video, GenerationConfig, OUTPUT_FILENAME,
     RESOLUTION_PRESETS, DEFAULT_PRESET, VIZUALIZER_STYLES, VIZUALIZER_COLOR_MODES,
+    find_folder_bgm,
 )
 
 
@@ -221,6 +222,85 @@ class MainWindow(QMainWindow):
         title_row.addWidget(self.title_overlay_check)
         title_row.addStretch()
         output_vbox.addLayout(title_row)
+
+        # ---- BGM設定行 ----
+        bgm_row1 = QHBoxLayout()
+        self.bgm_check = QCheckBox("BGMをミックスする")
+        self.bgm_check.setChecked(False)
+        self.bgm_check.setToolTip(
+            "BGMファイルを音声とミックスします。\n"
+            "入力フォルダに _bgm.mp3 等を置くか、BGMファイルを指定してください。"
+        )
+        self.bgm_check.stateChanged.connect(self._on_bgm_check_changed)
+        bgm_row1.addWidget(self.bgm_check)
+        bgm_row1.addWidget(QLabel("BGMファイル:"))
+        self.bgm_edit = QLineEdit()
+        self.bgm_edit.setPlaceholderText("ファイルを選択、または入力フォルダに _bgm.mp3 を配置すると自動認識")
+        self.bgm_edit.setEnabled(False)
+        bgm_row1.addWidget(self.bgm_edit)
+        self.bgm_browse_btn = QPushButton("参照...")
+        self.bgm_browse_btn.setFixedWidth(80)
+        self.bgm_browse_btn.setEnabled(False)
+        self.bgm_browse_btn.clicked.connect(self._on_browse_bgm)
+        bgm_row1.addWidget(self.bgm_browse_btn)
+        output_vbox.addLayout(bgm_row1)
+
+        bgm_row2 = QHBoxLayout()
+        bgm_row2.addWidget(QLabel("音声音量:"))
+        self.voice_vol_spin = QDoubleSpinBox()
+        self.voice_vol_spin.setRange(0.0, 2.0)
+        self.voice_vol_spin.setValue(1.0)
+        self.voice_vol_spin.setSingleStep(0.1)
+        self.voice_vol_spin.setDecimals(1)
+        self.voice_vol_spin.setSuffix("x")
+        self.voice_vol_spin.setFixedWidth(70)
+        self.voice_vol_spin.setEnabled(False)
+        self.voice_vol_spin.setToolTip("音声ファイルの音量倍率 (1.0=元のまま, 0.5=半分, 2.0=2倍)")
+        bgm_row2.addWidget(self.voice_vol_spin)
+        bgm_row2.addWidget(QLabel("BGM音量:"))
+        self.bgm_vol_spin = QDoubleSpinBox()
+        self.bgm_vol_spin.setRange(0.0, 2.0)
+        self.bgm_vol_spin.setValue(0.5)
+        self.bgm_vol_spin.setSingleStep(0.1)
+        self.bgm_vol_spin.setDecimals(1)
+        self.bgm_vol_spin.setSuffix("x")
+        self.bgm_vol_spin.setFixedWidth(70)
+        self.bgm_vol_spin.setEnabled(False)
+        self.bgm_vol_spin.setToolTip("BGMの音量倍率 (0.5=半分が標準)")
+        bgm_row2.addWidget(self.bgm_vol_spin)
+        bgm_row2.addWidget(QLabel("開始オフセット:"))
+        self.bgm_offset_spin = QDoubleSpinBox()
+        self.bgm_offset_spin.setRange(0.0, 3600.0)
+        self.bgm_offset_spin.setValue(0.0)
+        self.bgm_offset_spin.setSingleStep(1.0)
+        self.bgm_offset_spin.setDecimals(1)
+        self.bgm_offset_spin.setSuffix("秒")
+        self.bgm_offset_spin.setFixedWidth(75)
+        self.bgm_offset_spin.setEnabled(False)
+        self.bgm_offset_spin.setToolTip("BGMファイルの再生開始位置(秒)。イントロをスキップする場合に使用")
+        bgm_row2.addWidget(self.bgm_offset_spin)
+        bgm_row2.addWidget(QLabel("フェードイン:"))
+        self.bgm_fadein_spin = QDoubleSpinBox()
+        self.bgm_fadein_spin.setRange(0.0, 30.0)
+        self.bgm_fadein_spin.setValue(1.0)
+        self.bgm_fadein_spin.setSingleStep(0.5)
+        self.bgm_fadein_spin.setDecimals(1)
+        self.bgm_fadein_spin.setSuffix("秒")
+        self.bgm_fadein_spin.setFixedWidth(70)
+        self.bgm_fadein_spin.setEnabled(False)
+        bgm_row2.addWidget(self.bgm_fadein_spin)
+        bgm_row2.addWidget(QLabel("フェードアウト:"))
+        self.bgm_fadeout_spin = QDoubleSpinBox()
+        self.bgm_fadeout_spin.setRange(0.0, 30.0)
+        self.bgm_fadeout_spin.setValue(2.0)
+        self.bgm_fadeout_spin.setSingleStep(0.5)
+        self.bgm_fadeout_spin.setDecimals(1)
+        self.bgm_fadeout_spin.setSuffix("秒")
+        self.bgm_fadeout_spin.setFixedWidth(70)
+        self.bgm_fadeout_spin.setEnabled(False)
+        bgm_row2.addWidget(self.bgm_fadeout_spin)
+        bgm_row2.addStretch()
+        output_vbox.addLayout(bgm_row2)
 
         # 出力先行
         dest_row = QHBoxLayout()
@@ -570,6 +650,35 @@ class MainWindow(QMainWindow):
         viz_enabled = self.viz_check.isChecked()
         self.viz_color_btn.setEnabled(viz_enabled and is_solid)
 
+    def _on_bgm_check_changed(self, state: int):
+        """BGMミックスチェックボックス変更時の処理"""
+        enabled = (state == 2)  # Qt.Checked == 2
+        self.bgm_edit.setEnabled(enabled)
+        self.bgm_browse_btn.setEnabled(enabled)
+        self.voice_vol_spin.setEnabled(enabled)
+        self.bgm_vol_spin.setEnabled(enabled)
+        self.bgm_offset_spin.setEnabled(enabled)
+        self.bgm_fadein_spin.setEnabled(enabled)
+        self.bgm_fadeout_spin.setEnabled(enabled)
+        # フォルダ内のBGMファイルを自動検出
+        if enabled and not self.bgm_edit.text().strip():
+            folder = self.folder_edit.text()
+            if folder and os.path.isdir(folder):
+                auto_bgm = find_folder_bgm(folder)
+                if auto_bgm:
+                    self.bgm_edit.setText(auto_bgm)
+                    self._log(f"BGMファイルを自動検出: {os.path.basename(auto_bgm)}")
+
+    def _on_browse_bgm(self):
+        """BGMファイル選択ダイアログ"""
+        default_dir = self.folder_edit.text() or os.path.expanduser("~")
+        path, _ = QFileDialog.getOpenFileName(
+            self, "BGMファイルを選択", default_dir,
+            "音声ファイル (*.mp3 *.wav *.flac *.ogg *.m4a *.aac *.wma)"
+        )
+        if path:
+            self.bgm_edit.setText(path)
+
     def _update_viz_color_btn(self):
         """カラーボタンの背景色を現在の選択色に更新する"""
         c = self._viz_color_value
@@ -635,6 +744,21 @@ class MainWindow(QMainWindow):
         viz_opacity = self.viz_opacity_spin.value() / 100.0
         viz_color_mode = self.viz_color_mode_combo.currentData() or "solid"
         viz_color = self._viz_color_value
+        # BGM設定
+        bgm_enabled = self.bgm_check.isChecked()
+        bgm_path_text = self.bgm_edit.text().strip() if bgm_enabled else ""
+        # BGMファイルが指定されていない場合はフォルダ内を自動検出
+        if bgm_enabled and not bgm_path_text:
+            folder = self.folder_edit.text()
+            bgm_path_text = find_folder_bgm(folder) or ""
+        if bgm_enabled and not bgm_path_text:
+            QMessageBox.warning(self, "警告",
+                "BGMファイルが指定されていません。\n"
+                "ファイルを選択するか、入力フォルダに _bgm.mp3 を配置してください。")
+            return
+        if bgm_enabled and bgm_path_text and not os.path.isfile(bgm_path_text):
+            QMessageBox.warning(self, "警告", f"BGMファイルが見つかりません:\n{bgm_path_text}")
+            return
         config = GenerationConfig(
             pairs=pairs,
             output_path=output_path,
@@ -648,12 +772,19 @@ class MainWindow(QMainWindow):
             visualizer_opacity=viz_opacity,
             visualizer_color=viz_color,
             visualizer_color_mode=viz_color_mode,
+            bgm_path=bgm_path_text if bgm_enabled else None,
+            voice_volume=self.voice_vol_spin.value() if bgm_enabled else 1.0,
+            bgm_volume=self.bgm_vol_spin.value() if bgm_enabled else 0.5,
+            bgm_start_offset=self.bgm_offset_spin.value() if bgm_enabled else 0.0,
+            bgm_fade_in=self.bgm_fadein_spin.value() if bgm_enabled else 1.0,
+            bgm_fade_out=self.bgm_fadeout_spin.value() if bgm_enabled else 2.0,
         )
         kb_note = " + ケン・バーンズ効果" if ken_burns else ""
         title_note = " + タイトル表示" if title_overlay else " (タイトル非表示)"
         color_mode_label = VIZUALIZER_COLOR_MODES.get(viz_color_mode, viz_color_mode)
         viz_note = f" + ビジュアライザー({VIZUALIZER_STYLES.get(viz_style, viz_style)}/{color_mode_label})" if viz_enabled else ""
-        self._log(f"動画生成開始: {len(pairs)} チャプター | {preset_name} ({w}x{h}){title_note}{kb_note}{viz_note} → {output_path}")
+        bgm_note = f" + BGM({os.path.basename(bgm_path_text)}, 音声{config.voice_volume:.1f}x/BGM{config.bgm_volume:.1f}x)" if bgm_enabled and bgm_path_text else ""
+        self._log(f"動画生成開始: {len(pairs)} チャプター | {preset_name} ({w}x{h}){title_note}{kb_note}{viz_note}{bgm_note} → {output_path}")
         self._set_generating_state(True)
 
         self.worker = VideoGeneratorWorker(config)

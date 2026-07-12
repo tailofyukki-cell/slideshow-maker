@@ -339,6 +339,9 @@ def scan_folder(folder_path: str) -> ScanResult:
     visual_exact: Dict[str, Tuple[str, int]] = {}
     visual_multi: Dict[str, Dict[int, Tuple[str, int]]] = {}
 
+    # BGMファイル名として認識するベース名（スキャン対象から除外）
+    BGM_BASE_NAMES = {'_bgm', '_BGM', 'bgm', 'BGM'}
+
     for entry in entries:
         full_path = os.path.join(folder_path, entry)
         if not os.path.isfile(full_path):
@@ -346,6 +349,10 @@ def scan_folder(folder_path: str) -> ScanResult:
 
         name, ext = os.path.splitext(entry)
         ext_lower = ext.lower()
+
+        # BGMファイルはチャプターペアの対象外にする
+        if name in BGM_BASE_NAMES:
+            continue
 
         if ext_lower in AUDIO_EXTENSIONS:
             if name not in audio_files:

@@ -62,6 +62,13 @@ class GenerationConfig:
     visualizer_color_mode: str = "solid" # solid / rainbow / fire / neon / gold
     visualizer_opacity: float = 0.6      # 0.0-1.0
     visualizer_height: int = 80          # bar height in px (for waveform/freqbar/spectrum)
+    # --- BGM mix ---
+    bgm_path: Optional[str] = None       # BGMファイルパス（Noneなら無効）
+    voice_volume: float = 1.0            # 音声ボリューム倍率 (0.0-2.0)
+    bgm_volume: float = 0.5             # BGMボリューム倍率 (0.0-2.0)
+    bgm_fade_in: float = 1.0            # BGMフェードイン秒数
+    bgm_fade_out: float = 2.0           # BGMフェードアウト秒数
+    bgm_start_offset: float = 0.0       # BGM開始オフセット秒数
 
     @property
     def preset_name(self) -> str:
@@ -156,6 +163,127 @@ def run_ffmpeg(ffmpeg_path: str, args: List[str], timeout: int = 300) -> subproc
         creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
     )
     return result
+
+
+# ========== BGM フォルダ自動検出 ==========
+BGM_FILENAMES = ['_bgm', '_BGM', 'bgm', 'BGM']
+BGM_EXTENSIONS = ['.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac', '.wma']
+
+
+def find_folder_bgm(folder: str) -> Optional[str]:
+    """入力フォルダ内の自動BGMファイルを検索する。
+    _bgm.mp3 / _bgm.wav 等を優先順にチェックする。
+    """
+    for name in BGM_FILENAMES:
+        for ext in BGM_EXTENSIONS:
+            candidate = os.path.join(folder, name + ext)
+            if os.path.isfile(candidate):
+                return candidate
+    return None
+
+
+def load_bgm_timing(bgm_path: str) -> dict:
+    """
+    BGMタイミングJSONを読み込む。
+    JSONファイル名: {bgm_base}_timing.json
+    フォーマット: {"start_offset": 5.0, "fade_in": 1.0, "fade_out": 3.0}
+    ファイルがない場合は空辞書を返す。
+    """
+    base = os.path.splitext(bgm_path)[0]
+    timing_path = base + '_timing.json'
+    if not os.path.isfile(timing_path):
+        return {}
+    try:
+        with open(timing_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def mix_bgm_to_video(
+    input_video: str,
+    output_video: str,
+    bgm_path: str,
+    voice_volume: float,
+    bgm_volume: float,
+    bgm_start_offset: float,
+    bgm_fade_in: float,
+    bgm_fade_out: float,
+    ffmpeg_path: str,
+) -> None:
+    """
+    完成した動画にBGMをミックスする。
+    - BGMは動画の長さに合わせてループ再生
+    - 音声とBGMをamixでミックス
+    - フェードイン/アウト対応
+    """
+    # BGMの長さを取得してループ回数を計算
+    bgm_duration = get_audio_duration(bgm_path, ffmpeg_path)
+
+    # ffprobeで動画の長さを取得
+    ffprobe = ffmpeg_path.replace('ffmpeg', 'ffprobe').replace('ffmpeg.exe', 'ffprobe.exe')
+    if not os.path.isfile(ffprobe):
+        ffprobe = shutil.which('ffprobe') or 'ffprobe'
+    try:
+        result = subprocess.run(
+            [ffprobe, '-v', 'quiet', '-print_format', 'json', '-show_format', input_video],
+            capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=30
+        )
+        video_duration = float(json.loads(result.stdout).get('format', {}).get('duration', 0))
+    except Exception:
+        video_duration = 0
+
+    if video_duration <= 0:
+        raise RuntimeError("BGMミックス: 動画の長さを取得できませんでした")
+
+    # BGMループ回数を計算（余裕を持たせて+1）
+    effective_bgm_duration = bgm_duration - bgm_start_offset
+    if effective_bgm_duration <= 0:
+        effective_bgm_duration = bgm_duration
+        bgm_start_offset = 0.0
+    loop_count = int(video_duration / effective_bgm_duration) + 2
+
+    # フェードアウト開始時刻
+    fade_out_start = max(0, video_duration - bgm_fade_out)
+
+    # audio filter_complex:
+    # [1:a] = BGM
+    # atrim: BGMの開始オフセットをカット
+    # aloop: ループ再生
+    # atrim: 動画の長さに合わせてカット
+    # afade: フェードイン/アウト
+    # volume: BGM音量調整
+    # [0:a] = 元音声
+    # volume: 音声音量調整
+    # amix: ミックス
+    bgm_filter = (
+        f"[1:a]atrim=start={bgm_start_offset:.3f},"
+        f"aloop=loop={loop_count}:size=2147483647,"
+        f"atrim=duration={video_duration:.3f},"
+        f"afade=t=in:st=0:d={bgm_fade_in:.3f},"
+        f"afade=t=out:st={fade_out_start:.3f}:d={bgm_fade_out:.3f},"
+        f"volume={bgm_volume:.3f}[bgm_out];"
+        f"[0:a]volume={voice_volume:.3f}[voice_out];"
+        f"[voice_out][bgm_out]amix=inputs=2:duration=first:dropout_transition=2[aout]"
+    )
+
+    args = [
+        '-y',
+        '-i', input_video,
+        '-i', bgm_path,
+        '-filter_complex', bgm_filter,
+        '-map', '0:v',
+        '-map', '[aout]',
+        '-c:v', 'copy',
+        '-c:a', 'aac', '-b:a', '192k',
+        '-movflags', '+faststart',
+        output_video,
+    ]
+    result = run_ffmpeg(ffmpeg_path, args, timeout=600)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"BGMミックスに失敗しました。\nFFmpegエラー:\n{result.stderr[-2000:]}"
+        )
 
 
 def _build_ken_burns_filter(w: int, h: int, fps: int, duration: float,
@@ -860,8 +988,13 @@ def generate_video(
         check_cancel()
         report(85, "チャプターを結合中...")
 
-        if config.visualizer_enabled:
-            # ビジュアライザーを後処理で適用するため、一時ファイルに結合してから処理
+        # --- 後処理パイプライン: viz -> BGM の順で適用 ---
+        # 後処理が必要かどうかを判定
+        has_viz = config.visualizer_enabled
+        has_bgm = bool(config.bgm_path) and os.path.isfile(config.bgm_path or '')
+
+        if has_viz or has_bgm:
+            # まず一時ファイルに結合
             concat_tmp = os.path.join(temp_dir, 'concat_tmp.mp4')
             concatenate_videos(
                 chapter_paths=chapter_paths,
@@ -869,13 +1002,43 @@ def generate_video(
                 ffmpeg_path=ffmpeg_path,
                 temp_dir=temp_dir,
             )
-            report(92, "ビジュアライザーを適用中...")
-            apply_visualizer(
-                input_path=concat_tmp,
-                output_path=config.output_path,
-                config=config,
-                ffmpeg_path=ffmpeg_path,
-            )
+
+            current_tmp = concat_tmp
+
+            # ビジュアライザー適用
+            if has_viz:
+                report(90, "ビジュアライザーを適用中...")
+                viz_tmp = os.path.join(temp_dir, 'viz_tmp.mp4')
+                apply_visualizer(
+                    input_path=current_tmp,
+                    output_path=viz_tmp,
+                    config=config,
+                    ffmpeg_path=ffmpeg_path,
+                )
+                current_tmp = viz_tmp
+
+            # BGMミックス適用
+            if has_bgm:
+                report(95, "BGMをミックス中...")
+                # BGMタイミングJSONを読み込んでconfigの値を上書き
+                bgm_timing = load_bgm_timing(config.bgm_path)
+                bgm_mix_tmp = os.path.join(temp_dir, 'bgm_tmp.mp4')
+                mix_bgm_to_video(
+                    input_video=current_tmp,
+                    output_video=bgm_mix_tmp,
+                    bgm_path=config.bgm_path,
+                    voice_volume=config.voice_volume,
+                    bgm_volume=bgm_timing.get('volume', config.bgm_volume),
+                    bgm_start_offset=bgm_timing.get('start_offset', config.bgm_start_offset),
+                    bgm_fade_in=bgm_timing.get('fade_in', config.bgm_fade_in),
+                    bgm_fade_out=bgm_timing.get('fade_out', config.bgm_fade_out),
+                    ffmpeg_path=ffmpeg_path,
+                )
+                current_tmp = bgm_mix_tmp
+
+            # 最終出力先にコピー
+            shutil.copy2(current_tmp, config.output_path)
+
         else:
             concatenate_videos(
                 chapter_paths=chapter_paths,

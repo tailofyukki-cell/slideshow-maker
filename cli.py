@@ -143,6 +143,53 @@ Examples:
         help="Visualizer color in hex format (default: #00ffff)",
     )
 
+    # BGM Mix
+    bgm_group = parser.add_argument_group("BGM Mix")
+    bgm_group.add_argument(
+        "--bgm",
+        metavar="FILE",
+        default=None,
+        help=(
+            "BGM audio file to mix with voice. "
+            "If not specified, auto-detects _bgm.mp3/wav etc. in input folder."
+        ),
+    )
+    bgm_group.add_argument(
+        "--voice-vol",
+        type=float,
+        default=1.0,
+        metavar="0.0-2.0",
+        help="Voice audio volume multiplier (default: 1.0)",
+    )
+    bgm_group.add_argument(
+        "--bgm-vol",
+        type=float,
+        default=0.5,
+        metavar="0.0-2.0",
+        help="BGM volume multiplier (default: 0.5)",
+    )
+    bgm_group.add_argument(
+        "--bgm-offset",
+        type=float,
+        default=0.0,
+        metavar="SECONDS",
+        help="BGM start offset in seconds (default: 0.0)",
+    )
+    bgm_group.add_argument(
+        "--bgm-fade-in",
+        type=float,
+        default=1.0,
+        metavar="SECONDS",
+        help="BGM fade-in duration in seconds (default: 1.0)",
+    )
+    bgm_group.add_argument(
+        "--bgm-fade-out",
+        type=float,
+        default=2.0,
+        metavar="SECONDS",
+        help="BGM fade-out duration in seconds (default: 2.0)",
+    )
+
     # Utility
     util_group = parser.add_argument_group("Utility")
     util_group.add_argument(
@@ -172,6 +219,7 @@ def run_cli(args: argparse.Namespace) -> int:
     from video_generator import (
         generate_video, GenerationConfig,
         RESOLUTION_PRESETS, DEFAULT_PRESET, OUTPUT_FILENAME,
+        find_folder_bgm,
     )
     from file_scanner import scan_folder
 
@@ -254,6 +302,19 @@ def run_cli(args: argparse.Namespace) -> int:
         w, h = RESOLUTION_PRESETS[DEFAULT_PRESET]
         preset_label = DEFAULT_PRESET
 
+    # BGM自動検出
+    bgm_path = args.bgm
+    if bgm_path:
+        bgm_path = os.path.abspath(bgm_path)
+        if not os.path.isfile(bgm_path):
+            print(f"ERROR: BGM file not found: {bgm_path}", file=sys.stderr)
+            return 1
+    else:
+        # 入力フォルダ内のBGMファイルを自動検出
+        bgm_path = find_folder_bgm(input_folder)
+        if bgm_path:
+            print(f"Auto-detected BGM: {os.path.basename(bgm_path)}")
+
     # Build config
     config = GenerationConfig(
         pairs=pairs,
@@ -269,6 +330,12 @@ def run_cli(args: argparse.Namespace) -> int:
         visualizer_height=args.viz_height,
         visualizer_opacity=max(0.0, min(1.0, args.viz_opacity)),
         visualizer_color=args.viz_color,
+        bgm_path=bgm_path,
+        voice_volume=max(0.0, min(2.0, args.voice_vol)),
+        bgm_volume=max(0.0, min(2.0, args.bgm_vol)),
+        bgm_start_offset=max(0.0, args.bgm_offset),
+        bgm_fade_in=max(0.0, args.bgm_fade_in),
+        bgm_fade_out=max(0.0, args.bgm_fade_out),
     )
 
     # Print config summary
@@ -282,6 +349,11 @@ def run_cli(args: argparse.Namespace) -> int:
     if config.visualizer_enabled:
         print(f"  Visualizer   : {config.visualizer_style} "
               f"(height={config.visualizer_height}px, opacity={config.visualizer_opacity:.0%})")
+    if config.bgm_path:
+        print(f"  BGM          : {os.path.basename(config.bgm_path)} "
+              f"(voice={config.voice_volume:.1f}x, bgm={config.bgm_volume:.1f}x, "
+              f"offset={config.bgm_start_offset:.1f}s, "
+              f"fade-in={config.bgm_fade_in:.1f}s, fade-out={config.bgm_fade_out:.1f}s)")
     print()
 
     # Check output path

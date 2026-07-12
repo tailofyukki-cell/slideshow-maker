@@ -1007,6 +1007,122 @@ def test_cli_no_input_error():
     print("  [PASS] CLI no-input error test")
 
 
+def test_find_folder_bgm():
+    """Test find_folder_bgm detects _bgm.mp3 in folder."""
+    print("\n=== find_folder_bgm test ===")
+    from video_generator import find_folder_bgm
+    tmp = tempfile.mkdtemp()
+    try:
+        # No BGM file
+        result = find_folder_bgm(tmp)
+        assert result is None, f"Expected None, got {result}"
+        # Create _bgm.mp3
+        bgm_path = os.path.join(tmp, '_bgm.mp3')
+        make_audio(tmp, '_bgm', ext='.mp3', duration=3)
+        result = find_folder_bgm(tmp)
+        assert result == bgm_path, f"Expected {bgm_path}, got {result}"
+        print("  [PASS] find_folder_bgm")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_bgm_timing_json():
+    """Test load_bgm_timing reads JSON correctly."""
+    print("\n=== BGM timing JSON test ===")
+    from video_generator import load_bgm_timing
+    tmp = tempfile.mkdtemp()
+    try:
+        bgm_path = os.path.join(tmp, '_bgm.mp3')
+        timing_path = os.path.join(tmp, '_bgm_timing.json')
+        # No timing file
+        result = load_bgm_timing(bgm_path)
+        assert result == {}, f"Expected empty dict, got {result}"
+        # With timing file
+        timing_data = {"start_offset": 5.0, "fade_in": 2.0, "fade_out": 3.0, "volume": 0.4}
+        with open(timing_path, 'w', encoding='utf-8') as f:
+            json.dump(timing_data, f)
+        result = load_bgm_timing(bgm_path)
+        assert result['start_offset'] == 5.0
+        assert result['fade_in'] == 2.0
+        assert result['volume'] == 0.4
+        print("  [PASS] BGM timing JSON")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_bgm_mix_video():
+    """Test mix_bgm_to_video produces a valid MP4 with audio."""
+    print("\n=== BGM mix video test ===")
+    if not FFMPEG:
+        print("  [SKIP] FFmpeg not found")
+        return
+    from video_generator import mix_bgm_to_video, generate_video, GenerationConfig
+    from file_scanner import FilePair
+    tmp = tempfile.mkdtemp()
+    try:
+        # Create voice audio + image + BGM
+        audio_path = make_audio(tmp, 'song', ext='.wav', duration=5)
+        img_path = make_image(tmp, 'song', color='blue')
+        bgm_path = make_audio(tmp, '_bgm', ext='.mp3', duration=3, freq=220)
+        output_path = os.path.join(tmp, 'output.mp4')
+        pair = FilePair(base_name='song', audio_path=audio_path, image_path=img_path)
+        config = GenerationConfig(
+            pairs=[pair],
+            output_path=output_path,
+            width=320, height=240,
+            bgm_path=bgm_path,
+            voice_volume=1.0,
+            bgm_volume=0.5,
+            bgm_fade_in=0.5,
+            bgm_fade_out=1.0,
+        )
+        generate_video(config=config)
+        assert os.path.isfile(output_path), "Output file not created"
+        size = os.path.getsize(output_path)
+        assert size > 10000, f"Output file too small: {size} bytes"
+        print(f"  [PASS] BGM mix video ({size:,} bytes)")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_file_scanner_bgm_exclusion():
+    """Test that _bgm.mp3 is excluded from chapter pairing."""
+    print("\n=== File scanner BGM exclusion test ===")
+    from file_scanner import scan_folder
+    tmp = tempfile.mkdtemp()
+    try:
+        # Create normal pair + BGM file
+        make_audio(tmp, 'song', ext='.mp3', duration=3)
+        make_image(tmp, 'song', color='green')
+        make_audio(tmp, '_bgm', ext='.mp3', duration=10)
+        result = scan_folder(tmp)
+        base_names = [p.base_name for p in result.complete_pairs]
+        assert 'song' in base_names, f"'song' not found in {base_names}"
+        assert '_bgm' not in base_names, f"'_bgm' should be excluded, got {base_names}"
+        print(f"  [PASS] BGM exclusion (pairs: {base_names})")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_cli_bgm_option():
+    """Test CLI --bgm option is accepted and reflected in config."""
+    print("\n=== CLI BGM option test ===")
+    from cli import build_parser
+    parser = build_parser()
+    args = parser.parse_args([
+        '--cli', '--input', '/tmp/test', '--output', '/tmp/out.mp4',
+        '--bgm', '/tmp/bgm.mp3', '--voice-vol', '1.2', '--bgm-vol', '0.3',
+        '--bgm-offset', '5.0', '--bgm-fade-in', '2.0', '--bgm-fade-out', '3.0',
+    ])
+    assert args.bgm == '/tmp/bgm.mp3'
+    assert abs(args.voice_vol - 1.2) < 0.001
+    assert abs(args.bgm_vol - 0.3) < 0.001
+    assert abs(args.bgm_offset - 5.0) < 0.001
+    assert abs(args.bgm_fade_in - 2.0) < 0.001
+    assert abs(args.bgm_fade_out - 3.0) < 0.001
+    print("  [PASS] CLI BGM option")
+
+
 if __name__ == '__main__':
     # Telop tests
     test_telop_parser_basic()
@@ -1038,4 +1154,10 @@ if __name__ == '__main__':
     test_cli_dry_run()
     test_cli_generate()
     test_cli_no_input_error()
+    # BGM tests
+    test_find_folder_bgm()
+    test_bgm_timing_json()
+    test_bgm_mix_video()
+    test_file_scanner_bgm_exclusion()
+    test_cli_bgm_option()
     print("\n[ALL TESTS PASSED]")
