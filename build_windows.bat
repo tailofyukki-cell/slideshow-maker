@@ -1,6 +1,9 @@
 @echo off
 echo ============================================
 echo  SlideshowMaker - Windows Build Script
+echo  Builds two EXEs:
+echo    SlideshowMaker.exe    (GUI, no console)
+echo    SlideshowMakerCLI.exe (CLI, console visible)
 echo ============================================
 echo.
 
@@ -25,7 +28,7 @@ if errorlevel 1 (
 echo     Done.
 
 echo.
-echo [2/3] Building exe...
+echo [2/3] Building exe (GUI + CLI)...
 python -m PyInstaller --noconfirm slideshow_maker.spec
 if errorlevel 1 (
     echo [ERROR] Build failed.
@@ -38,10 +41,8 @@ echo.
 echo [3/3] Checking ffmpeg.exe...
 if exist "ffmpeg.exe" (
     echo     ffmpeg.exe found. Copying to dist folder...
-    copy /Y "ffmpeg.exe" "dist\SlideshowMaker\ffmpeg.exe" > nul 2>&1
     copy /Y "ffmpeg.exe" "dist\ffmpeg.exe" > nul 2>&1
     if exist "ffprobe.exe" (
-        copy /Y "ffprobe.exe" "dist\SlideshowMaker\ffprobe.exe" > nul 2>&1
         copy /Y "ffprobe.exe" "dist\ffprobe.exe" > nul 2>&1
     )
     echo     Copied.
@@ -54,10 +55,15 @@ if exist "ffmpeg.exe" (
 echo.
 echo ============================================
 echo  Build complete!
-echo  GUI mode : dist\SlideshowMaker.exe
-echo  CLI mode : dist\SlideshowMaker.exe --cli --help
-echo  Presets  : dist\SlideshowMaker.exe --cli --list-presets
-echo  Example  : dist\SlideshowMaker.exe --cli --input C:\Music --output C:\out.mp4
+echo.
+echo  GUI mode (no console):
+echo    dist\SlideshowMaker.exe
+echo.
+echo  CLI mode (console visible):
+echo    dist\SlideshowMakerCLI.exe --help
+echo    dist\SlideshowMakerCLI.exe --list-presets
+echo    dist\SlideshowMakerCLI.exe --input C:\Music --output C:\out.mp4
+echo    dist\SlideshowMakerCLI.exe --input C:\Songs --bgm C:\bgm.mp3
 echo ============================================
 echo.
 pause
