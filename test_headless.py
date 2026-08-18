@@ -1123,6 +1123,77 @@ def test_cli_bgm_option():
     print("  [PASS] CLI BGM option")
 
 
+def test_output_queue_state_management():
+    """Test OutputQueue add, order, stop request and status accounting."""
+    print("\n=== Output queue state-management test ===")
+    from output_queue import (
+        OutputQueue, STATUS_DONE, STATUS_RUNNING, STATUS_WAITING,
+    )
+
+    queue = OutputQueue()
+    first = queue.add_settings_snapshot({"input_folder": "/tmp/one"}, "one")
+    second = queue.add_settings_snapshot({"input_folder": "/tmp/two"}, "two")
+    assert len(queue.items) == 2
+    assert queue.items[0] is first
+    assert queue.move(1, -1) is True
+    assert queue.items[0] is second
+
+    queue.reset_for_run()
+    first_index = queue.next_waiting_index()
+    assert first_index == 0
+    queue.current_index = first_index
+    queue.items[first_index].status = STATUS_RUNNING
+    assert queue.is_running is True
+    queue.items[first_index].status = STATUS_DONE
+    second_index = queue.next_waiting_index()
+    assert second_index == 1
+    queue.request_stop()
+    assert queue.next_waiting_index() is None
+    summary = queue.summary()
+    assert summary[STATUS_DONE] == 1
+    assert summary[STATUS_WAITING] == 1
+    print("  [PASS] Output queue state management")
+
+
+def test_output_queue_project_preparation():
+    """Test saved project data is converted into a GenerationConfig for queue output."""
+    print("\n=== Output queue project-preparation test ===")
+    if not FFMPEG:
+        print("  [SKIP] FFmpeg not found")
+        return
+    from output_queue import QueueItem, prepare_queue_job
+    from project_manager import PROJECT_FILE_EXTENSION, save_project_file
+
+    tmp = tempfile.mkdtemp()
+    try:
+        media_dir = os.path.join(tmp, "media")
+        os.makedirs(media_dir)
+        make_audio(media_dir, "track", ext=".wav", duration=2)
+        make_image(media_dir, "track", color="purple")
+        project_path = os.path.join(tmp, "queue_item" + PROJECT_FILE_EXTENSION)
+        output_path = os.path.join(media_dir, "queue_output.mp4")
+        save_project_file(project_path, {
+            "input_folder": media_dir,
+            "output_path": output_path,
+            "preset_name": "1080p 横型 (YouTube/一般)",
+            "title_overlay": False,
+            "visualizer_enabled": True,
+            "visualizer_style": "waveform",
+            "visualizer_height": 100,
+            "visualizer_opacity_percent": 70,
+        })
+        item = QueueItem.from_project_file(project_path)
+        job = prepare_queue_job(item)
+        assert job.chapter_count == 1
+        assert job.config.output_path == output_path
+        assert job.config.title_overlay is False
+        assert job.config.visualizer_enabled is True
+        assert job.config.visualizer_height == 100
+        print("  [PASS] Output queue project preparation")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_cli_executable_mode_detection():
     """Test SlideshowMakerCLI.exe selects CLI mode without --cli."""
     print("\n=== CLI executable mode detection test ===")
@@ -1278,7 +1349,9 @@ if __name__ == '__main__':
     test_bgm_mix_video()
     test_file_scanner_bgm_exclusion()
     test_cli_bgm_option()
-    # Project save/load tests
+    # Project save/load and output queue tests
+    test_output_queue_state_management()
+    test_output_queue_project_preparation()
     test_cli_executable_mode_detection()
     test_project_file_round_trip()
     test_project_file_validation()

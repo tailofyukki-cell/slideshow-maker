@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
     QMessageBox, QSizePolicy, QFrame,
     QComboBox, QCheckBox, QDoubleSpinBox
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSize
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSize, QTimer
 from PyQt5.QtGui import QFont, QColor, QPalette, QIcon
 
 from file_scanner import scan_folder, ScanResult, FilePair, AUDIO_EXTENSIONS, IMAGE_PRIORITY, VIDEO_PRIORITY
@@ -27,6 +27,10 @@ from project_manager import (
     PROJECT_FILE_EXTENSION, ProjectFileError,
     get_project_file_filter, load_project_file, project_default_path,
     save_project_file,
+)
+from output_queue import (
+    OutputQueue, QueueItemError, STATUS_CANCELLED, STATUS_DONE,
+    STATUS_ERROR, STATUS_RUNNING, STATUS_WAITING, prepare_queue_job,
 )
 
 
@@ -72,14 +76,16 @@ class MainWindow(QMainWindow):
         self.scan_result: ScanResult = None
         self.worker: VideoGeneratorWorker = None
         self.current_project_path: str = None
+        self.output_queue = OutputQueue()
+        self.queue_active = False
 
         self._init_ui()
         self._apply_style()
 
     def _init_ui(self):
         self.setWindowTitle("SlideshowMaker - 音声+画像/動画→MP4動画生成")
-        self.setMinimumSize(900, 700)
-        self.resize(1100, 780)
+        self.setMinimumSize(980, 820)
+        self.resize(1180, 900)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -344,8 +350,76 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(output_group)
 
+        # ---- 一括出力キュー ----
+        queue_group = QGroupBox("④ 一括出力キュー")
+        queue_layout = QVBoxLayout(queue_group)
+        queue_hint = QLabel(
+            "保存済みのプロジェクト（.slideshow.json）を登録し、上から順に連続生成します。"
+        )
+        queue_hint.setStyleSheet("color: #555; font-size: 11px;")
+        queue_layout.addWidget(queue_hint)
+
+        self.queue_table = QTableWidget()
+        self.queue_table.setColumnCount(5)
+        self.queue_table.setHorizontalHeaderLabels([
+            "プロジェクト", "入力フォルダ", "出力ファイル", "状態", "詳細"
+        ])
+        self.queue_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.queue_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.queue_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self.queue_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.queue_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
+        self.queue_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.queue_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.queue_table.setAlternatingRowColors(True)
+        self.queue_table.verticalHeader().setVisible(False)
+        self.queue_table.setMinimumHeight(130)
+        self.queue_table.setMaximumHeight(170)
+        queue_layout.addWidget(self.queue_table)
+
+        queue_buttons = QHBoxLayout()
+        self.queue_add_projects_btn = QPushButton("プロジェクトを追加...")
+        self.queue_add_projects_btn.clicked.connect(self._on_queue_add_projects)
+        queue_buttons.addWidget(self.queue_add_projects_btn)
+        self.queue_add_current_btn = QPushButton("現在の設定を追加")
+        self.queue_add_current_btn.clicked.connect(self._on_queue_add_current)
+        queue_buttons.addWidget(self.queue_add_current_btn)
+        self.queue_remove_btn = QPushButton("選択項目を削除")
+        self.queue_remove_btn.clicked.connect(self._on_queue_remove)
+        queue_buttons.addWidget(self.queue_remove_btn)
+        self.queue_up_btn = QPushButton("▲")
+        self.queue_up_btn.setFixedWidth(42)
+        self.queue_up_btn.setToolTip("選択項目を上へ移動")
+        self.queue_up_btn.clicked.connect(lambda: self._on_queue_move(-1))
+        queue_buttons.addWidget(self.queue_up_btn)
+        self.queue_down_btn = QPushButton("▼")
+        self.queue_down_btn.setFixedWidth(42)
+        self.queue_down_btn.setToolTip("選択項目を下へ移動")
+        self.queue_down_btn.clicked.connect(lambda: self._on_queue_move(1))
+        queue_buttons.addWidget(self.queue_down_btn)
+        self.queue_clear_btn = QPushButton("キューをクリア")
+        self.queue_clear_btn.clicked.connect(self._on_queue_clear)
+        queue_buttons.addWidget(self.queue_clear_btn)
+        queue_buttons.addStretch()
+        self.queue_start_btn = QPushButton("▶ 一括出力を開始")
+        self.queue_start_btn.setObjectName("queue_start_btn")
+        self.queue_start_btn.setEnabled(False)
+        self.queue_start_btn.clicked.connect(self._on_queue_start)
+        queue_buttons.addWidget(self.queue_start_btn)
+        self.queue_stop_btn = QPushButton("現在の出力後に停止")
+        self.queue_stop_btn.setObjectName("queue_stop_btn")
+        self.queue_stop_btn.setEnabled(False)
+        self.queue_stop_btn.clicked.connect(self._on_queue_stop_after_current)
+        queue_buttons.addWidget(self.queue_stop_btn)
+        queue_layout.addLayout(queue_buttons)
+
+        self.queue_summary_label = QLabel("キューは空です")
+        self.queue_summary_label.setStyleSheet("color: #555; font-size: 11px;")
+        queue_layout.addWidget(self.queue_summary_label)
+        layout.addWidget(queue_group)
+
         # ---- 動画生成 ----
-        generate_group = QGroupBox("④ 動画生成")
+        generate_group = QGroupBox("⑤ 動画生成")
         generate_layout = QVBoxLayout(generate_group)
 
         btn_layout = QHBoxLayout()
@@ -433,6 +507,19 @@ class MainWindow(QMainWindow):
                 background-color: #c50f1f;
             }
             QPushButton#cancel_btn:hover {
+                background-color: #a80f1a;
+            }
+            QPushButton#queue_start_btn {
+                background-color: #6b4c9a;
+                font-weight: bold;
+            }
+            QPushButton#queue_start_btn:hover {
+                background-color: #553b7a;
+            }
+            QPushButton#queue_stop_btn {
+                background-color: #c50f1f;
+            }
+            QPushButton#queue_stop_btn:hover {
                 background-color: #a80f1a;
             }
             QLineEdit {
@@ -621,6 +708,306 @@ class MainWindow(QMainWindow):
                 self._log(f"警告: BGMファイルが見つかりません: {settings['bgm_path']}")
         except (ProjectFileError, OSError) as e:
             QMessageBox.critical(self, "読込エラー", f"プロジェクトを読み込めませんでした:\n{e}")
+
+    # ---- 一括出力キュー ----
+
+    def _selected_queue_index(self):
+        """キュー表で選択されている行番号を返す。"""
+        index = self.queue_table.currentRow()
+        return index if index >= 0 else None
+
+    def _update_queue_table(self):
+        """キューの状態を表と操作ボタンへ反映する。"""
+        status_colors = {
+            STATUS_WAITING: QColor("#666666"),
+            STATUS_RUNNING: QColor("#0067b1"),
+            STATUS_DONE: QColor("#107c10"),
+            STATUS_ERROR: QColor("#c50f1f"),
+            STATUS_CANCELLED: QColor("#8a6d3b"),
+        }
+        row_colors = {
+            STATUS_RUNNING: QColor(220, 240, 255),
+            STATUS_DONE: QColor(220, 255, 220),
+            STATUS_ERROR: QColor(255, 225, 225),
+            STATUS_CANCELLED: QColor(255, 245, 210),
+        }
+        self.queue_table.setRowCount(len(self.output_queue.items))
+        for row, item in enumerate(self.output_queue.items):
+            input_folder = str(item.settings.get("input_folder", "") or "")
+            output_path = item.output_path or str(item.settings.get("output_path", "") or "")
+            values = [
+                item.display_name,
+                input_folder,
+                output_path or "（入力フォルダ内に output.mp4）",
+                item.status,
+                item.message or "—",
+            ]
+            for column, value in enumerate(values):
+                cell = QTableWidgetItem(value)
+                if column == 3:
+                    cell.setForeground(status_colors.get(item.status, QColor("#666666")))
+                    cell.setFont(QFont("", 10, QFont.Bold))
+                if item.status in row_colors:
+                    cell.setBackground(row_colors[item.status])
+                self.queue_table.setItem(row, column, cell)
+
+        counts = self.output_queue.summary()
+        total = len(self.output_queue.items)
+        if not total:
+            self.queue_summary_label.setText("キューは空です")
+        else:
+            self.queue_summary_label.setText(
+                f"登録: {total}件  |  待機: {counts[STATUS_WAITING]}  |  "
+                f"生成中: {counts[STATUS_RUNNING]}  |  完了: {counts[STATUS_DONE]}  |  "
+                f"エラー: {counts[STATUS_ERROR]}  |  中止: {counts[STATUS_CANCELLED]}"
+            )
+        self._set_queue_controls()
+
+    def _set_queue_controls(self):
+        """キュー実行中かどうかに応じてキュー操作ボタンを切り替える。"""
+        editable = not self.queue_active
+        has_items = bool(self.output_queue.items)
+        for button in (
+            self.queue_add_projects_btn,
+            self.queue_add_current_btn,
+            self.queue_remove_btn,
+            self.queue_up_btn,
+            self.queue_down_btn,
+            self.queue_clear_btn,
+        ):
+            button.setEnabled(editable)
+        self.queue_start_btn.setEnabled(editable and has_items)
+        self.queue_stop_btn.setEnabled(self.queue_active and not self.output_queue.stop_requested)
+
+    def _on_queue_add_projects(self):
+        """保存済みプロジェクトを複数選択してキューへ追加する。"""
+        default_dir = os.path.dirname(self.current_project_path) if self.current_project_path else os.path.expanduser("~")
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "キューへ追加するプロジェクトを選択", default_dir, get_project_file_filter()
+        )
+        if not paths:
+            return
+
+        added_count = 0
+        errors = []
+        for path in paths:
+            try:
+                added = self.output_queue.add_project_files([path])
+                added_count += len(added)
+            except Exception as error:
+                errors.append(f"{os.path.basename(path)}: {error}")
+        self._update_queue_table()
+        if added_count:
+            self._log(f"一括出力キューへ {added_count}件追加しました")
+        if errors:
+            QMessageBox.warning(
+                self, "一部のプロジェクトを追加できません",
+                "以下のプロジェクトを読み込めませんでした:\n\n" + "\n".join(errors),
+            )
+
+    def _on_queue_add_current(self):
+        """現在の画面設定をスナップショットとしてキューへ追加する。"""
+        settings = self._collect_project_settings()
+        if not settings["input_folder"]:
+            QMessageBox.warning(self, "警告", "キューへ追加する前に入力フォルダを選択してください。")
+            return
+        display_name = (
+            os.path.basename(self.current_project_path)
+            if self.current_project_path else "現在の設定"
+        )
+        self.output_queue.add_settings_snapshot(settings, display_name)
+        self._update_queue_table()
+        self._log(f"一括出力キューへ現在の設定を追加: {display_name}")
+
+    def _on_queue_remove(self):
+        """選択中のキュー項目を削除する。"""
+        index = self._selected_queue_index()
+        if index is None:
+            QMessageBox.information(self, "確認", "削除するキュー項目を選択してください。")
+            return
+        try:
+            removed = self.output_queue.remove_at(index)
+            self._update_queue_table()
+            self._log(f"キュー項目を削除: {removed.display_name}")
+        except (QueueItemError, IndexError) as error:
+            QMessageBox.warning(self, "削除できません", str(error))
+
+    def _on_queue_move(self, direction: int):
+        """選択中のキュー項目を上下へ移動する。"""
+        index = self._selected_queue_index()
+        if index is None:
+            return
+        if self.output_queue.move(index, direction):
+            new_index = index + direction
+            self._update_queue_table()
+            self.queue_table.selectRow(new_index)
+
+    def _on_queue_clear(self):
+        """キューが停止中の場合に全項目を削除する。"""
+        if self.queue_active:
+            return
+        if not self.output_queue.items:
+            return
+        reply = QMessageBox.question(
+            self, "確認", "一括出力キューの全項目を削除しますか？",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if reply == QMessageBox.Yes:
+            self.output_queue.clear_waiting()
+            self._update_queue_table()
+            self._log("一括出力キューをクリアしました")
+
+    def _on_queue_start(self):
+        """一括出力を開始する。既存の完了・エラー状態は再実行対象として待機に戻す。"""
+        if not self.output_queue.items:
+            return
+        self.output_queue.reset_for_run()
+        self.queue_active = True
+        self.progress_bar.setValue(0)
+        self._update_queue_table()
+        self._log(f"一括出力を開始: {len(self.output_queue.items)}件")
+        QTimer.singleShot(0, self._start_next_queue_item)
+
+    def _on_queue_stop_after_current(self):
+        """現在の動画の完了後、新しいキュー項目を開始しない。"""
+        if not self.queue_active:
+            return
+        self.output_queue.request_stop()
+        self._update_queue_table()
+        self.status_label.setText("現在の動画の生成完了後に一括出力を停止します...")
+        self._log("一括出力の停止を要求しました（現在の動画は完了まで処理します）")
+
+    def _mark_waiting_queue_items_cancelled(self, message: str):
+        """未開始の項目を中止状態へ更新する。"""
+        for item in self.output_queue.items:
+            if item.status == STATUS_WAITING:
+                item.status = STATUS_CANCELLED
+                item.message = message
+
+    def _start_next_queue_item(self):
+        """次の待機項目を検証してバックグラウンド生成を開始する。"""
+        if not self.queue_active:
+            return
+
+        index = self.output_queue.next_waiting_index()
+        if index is None:
+            if self.output_queue.stop_requested:
+                self._mark_waiting_queue_items_cancelled("停止要求により未実行")
+            self._finish_queue_run()
+            return
+
+        self.output_queue.current_index = index
+        item = self.output_queue.items[index]
+        try:
+            job = prepare_queue_job(item)
+        except Exception as error:
+            item.status = STATUS_ERROR
+            item.message = str(error)
+            self._log(f"キュー {index + 1}/{len(self.output_queue.items)} エラー: {item.display_name} — {error}")
+            self._update_queue_table()
+            QTimer.singleShot(0, self._start_next_queue_item)
+            return
+
+        item.status = STATUS_RUNNING
+        item.message = f"{job.chapter_count}チャプターを生成中"
+        self._update_queue_table()
+        total = len(self.output_queue.items)
+        self.status_label.setText(f"一括出力 {index + 1}/{total}: {item.display_name}")
+        self._log(
+            f"キュー {index + 1}/{total} を開始: {item.display_name} "
+            f"({job.chapter_count}チャプター) → {job.config.output_path}"
+        )
+        self._set_generating_state(True)
+        self.worker = VideoGeneratorWorker(job.config)
+        self.worker.progress.connect(self._on_queue_progress)
+        self.worker.finished.connect(self._on_queue_item_finished)
+        self.worker.error.connect(self._on_queue_item_error)
+        self.worker.cancelled.connect(self._on_queue_item_cancelled)
+        self.worker.start()
+
+    def _on_queue_progress(self, percent: int, message: str):
+        """現在のキュー項目の進捗を個別・全体進捗として表示する。"""
+        index = self.output_queue.current_index
+        if index is None or not self.queue_active:
+            return
+        item = self.output_queue.items[index]
+        item.message = message
+        total = max(1, len(self.output_queue.items))
+        overall_percent = int(((index + percent / 100.0) / total) * 100)
+        self.progress_bar.setValue(overall_percent)
+        self.status_label.setText(
+            f"一括出力 {index + 1}/{total} [{percent:3d}%]: {message}"
+        )
+        self._update_queue_table()
+
+    def _on_queue_item_finished(self, output_path: str):
+        """1件の完了を記録して、必要なら次の項目を開始する。"""
+        index = self.output_queue.current_index
+        if index is None:
+            return
+        item = self.output_queue.items[index]
+        item.status = STATUS_DONE
+        item.message = f"完了: {os.path.basename(output_path)}"
+        item.output_path = output_path
+        self._log(f"キュー {index + 1}/{len(self.output_queue.items)} 完了: {output_path}")
+        self._set_generating_state(False)
+        self._update_queue_table()
+        QTimer.singleShot(0, self._start_next_queue_item)
+
+    def _on_queue_item_error(self, error_message: str):
+        """1件のエラーを記録し、停止要求がなければ次項目へ進む。"""
+        index = self.output_queue.current_index
+        if index is None:
+            return
+        item = self.output_queue.items[index]
+        item.status = STATUS_ERROR
+        item.message = error_message
+        self._log(f"キュー {index + 1}/{len(self.output_queue.items)} エラー: {item.display_name} — {error_message}")
+        self._set_generating_state(False)
+        self._update_queue_table()
+        QTimer.singleShot(0, self._start_next_queue_item)
+
+    def _on_queue_item_cancelled(self):
+        """現在の出力をキャンセルした場合は、残りのキューも中止して終了する。"""
+        index = self.output_queue.current_index
+        if index is not None:
+            item = self.output_queue.items[index]
+            item.status = STATUS_CANCELLED
+            item.message = "現在の出力をキャンセル"
+        self.output_queue.request_stop()
+        self._mark_waiting_queue_items_cancelled("現在の出力がキャンセルされたため未実行")
+        self._set_generating_state(False)
+        self._update_queue_table()
+        self._finish_queue_run()
+
+    def _finish_queue_run(self):
+        """一括出力を終了し、結果サマリーを表示する。"""
+        if not self.queue_active:
+            return
+        was_stopped = self.output_queue.stop_requested
+        self.queue_active = False
+        self.output_queue.current_index = None
+        counts = self.output_queue.summary()
+        total = len(self.output_queue.items)
+        self.progress_bar.setValue(100 if counts[STATUS_DONE] + counts[STATUS_ERROR] + counts[STATUS_CANCELLED] == total else 0)
+        self._set_generating_state(False)
+        self._update_queue_table()
+
+        result = (
+            f"一括出力を{'停止しました' if was_stopped else '完了しました'}。\n\n"
+            f"完了: {counts[STATUS_DONE]}件\n"
+            f"エラー: {counts[STATUS_ERROR]}件\n"
+            f"中止: {counts[STATUS_CANCELLED]}件"
+        )
+        if counts[STATUS_ERROR]:
+            self.status_label.setText(f"一括出力完了（{counts[STATUS_DONE]}件完了 / {counts[STATUS_ERROR]}件エラー）")
+            self.status_label.setStyleSheet("color: #c50f1f; font-size: 12px; font-weight: bold;")
+            QMessageBox.warning(self, "一括出力の結果", result)
+        else:
+            self.status_label.setText(f"一括出力完了（{counts[STATUS_DONE]}件）")
+            self.status_label.setStyleSheet("color: #107c10; font-size: 12px; font-weight: bold;")
+            QMessageBox.information(self, "一括出力の結果", result)
+        self._log(result.replace("\n", " | "))
 
     def _on_browse_folder(self):
         folder = QFileDialog.getExistingDirectory(
@@ -1016,6 +1403,24 @@ class MainWindow(QMainWindow):
         self.browse_btn.setEnabled(not generating)
         self.scan_btn.setEnabled(not generating)
         self.output_btn.setEnabled(not generating)
+
+        # 通常の単体生成中は、別のワーカーを起動しないようキュー操作も止める。
+        # 一括出力中は _set_queue_controls() がキュー用の状態を管理する。
+        if generating and not self.queue_active:
+            for button in (
+                self.queue_add_projects_btn,
+                self.queue_add_current_btn,
+                self.queue_remove_btn,
+                self.queue_up_btn,
+                self.queue_down_btn,
+                self.queue_clear_btn,
+                self.queue_start_btn,
+                self.queue_stop_btn,
+            ):
+                button.setEnabled(False)
+        elif not self.queue_active:
+            self._set_queue_controls()
+
         if not generating:
             self.status_label.setStyleSheet("color: #555; font-size: 12px;")
 
