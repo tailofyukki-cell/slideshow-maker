@@ -4,12 +4,13 @@ SlideshowMaker - Entry point
 
 Supports two modes:
   GUI mode (default): Launch PyQt5 GUI application
-  CLI mode:           Run from command line with --cli flag
+  CLI mode:           Run with --cli, or launch SlideshowMakerCLI.exe
 
 CLI usage:
   python main.py --cli --input <folder> --output <file.mp4> [options]
-  python main.py --cli --list-presets
-  python main.py --cli --input <folder> --dry-run
+  SlideshowMakerCLI.exe --input <folder> --output <file.mp4> [options]
+  SlideshowMakerCLI.exe --list-presets
+  SlideshowMakerCLI.exe --input <folder> --dry-run
   python main.py --help
 """
 import sys
@@ -24,8 +25,14 @@ def resource_path(relative_path):
 
 
 def is_cli_mode() -> bool:
-    """コマンドライン引数からCLIモードかどうかを判定する"""
-    return '--cli' in sys.argv
+    """引数またはCLI専用EXE名からCLIモードかどうかを判定する。"""
+    if '--cli' in sys.argv:
+        return True
+
+    # PyInstallerで生成した SlideshowMakerCLI.exe は、--cli を付けずに
+    # そのままコマンドライン専用アプリとして起動できるようにする。
+    executable = sys.executable if getattr(sys, 'frozen', False) else sys.argv[0]
+    return os.path.basename(executable).lower() == 'slideshowmakercli.exe'
 
 
 def main():

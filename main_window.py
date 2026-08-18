@@ -23,6 +23,11 @@ from video_generator import (
     RESOLUTION_PRESETS, DEFAULT_PRESET, VIZUALIZER_STYLES, VIZUALIZER_COLOR_MODES,
     find_folder_bgm,
 )
+from project_manager import (
+    PROJECT_FILE_EXTENSION, ProjectFileError,
+    get_project_file_filter, load_project_file, project_default_path,
+    save_project_file,
+)
 
 
 # ========== ワーカースレッド ==========
@@ -66,6 +71,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.scan_result: ScanResult = None
         self.worker: VideoGeneratorWorker = None
+        self.current_project_path: str = None
 
         self._init_ui()
         self._apply_style()
@@ -80,6 +86,28 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(central)
         layout.setSpacing(10)
         layout.setContentsMargins(12, 12, 12, 12)
+
+        # ---- プロジェクト操作 ----
+        project_group = QGroupBox("プロジェクト")
+        project_layout = QHBoxLayout(project_group)
+        self.project_label = QLabel("未保存のプロジェクト")
+        self.project_label.setStyleSheet("color: #555; font-size: 12px;")
+        project_layout.addWidget(self.project_label)
+        project_layout.addStretch()
+        self.save_project_btn = QPushButton("プロジェクトを保存...")
+        self.save_project_btn.setFixedWidth(150)
+        self.save_project_btn.setToolTip(
+            "現在の入力フォルダ・出力設定・BGM・ビジュアライザー設定を保存します。\n"
+            "画像・音声などの素材ファイル自体は保存されません。"
+        )
+        self.save_project_btn.clicked.connect(self._on_save_project)
+        project_layout.addWidget(self.save_project_btn)
+        self.load_project_btn = QPushButton("プロジェクトを読込...")
+        self.load_project_btn.setFixedWidth(150)
+        self.load_project_btn.setToolTip("保存済みの .slideshow.json プロジェクトを読み込みます。")
+        self.load_project_btn.clicked.connect(self._on_load_project)
+        project_layout.addWidget(self.load_project_btn)
+        layout.addWidget(project_group)
 
         # ---- フォルダ選択 ----
         folder_group = QGroupBox("① 入力フォルダ選択")
@@ -447,6 +475,152 @@ class MainWindow(QMainWindow):
         self.cancel_btn.setObjectName("cancel_btn")
 
     # ---- イベントハンドラ ----
+
+    # ---- プロジェクト保存・読込 ----
+
+    def _collect_project_settings(self) -> dict:
+        """現在のUI設定をプロジェクト保存用の辞書として取得する。"""
+        return {
+            "input_folder": self.folder_edit.text().strip(),
+            "output_path": self.output_edit.text().strip(),
+            "preset_name": self.preset_combo.currentText(),
+            "ken_burns": self.ken_burns_check.isChecked(),
+            "title_overlay": self.title_overlay_check.isChecked(),
+            "visualizer_enabled": self.viz_check.isChecked(),
+            "visualizer_style": self.viz_style_combo.currentData() or "waveform",
+            "visualizer_height": self.viz_height_spin.value(),
+            "visualizer_opacity_percent": self.viz_opacity_spin.value(),
+            "visualizer_color_mode": self.viz_color_mode_combo.currentData() or "solid",
+            "visualizer_color": self._viz_color_value,
+            "bgm_enabled": self.bgm_check.isChecked(),
+            "bgm_path": self.bgm_edit.text().strip(),
+            "voice_volume": self.voice_vol_spin.value(),
+            "bgm_volume": self.bgm_vol_spin.value(),
+            "bgm_start_offset": self.bgm_offset_spin.value(),
+            "bgm_fade_in": self.bgm_fadein_spin.value(),
+            "bgm_fade_out": self.bgm_fadeout_spin.value(),
+        }
+
+    def _set_combo_data(self, combo: QComboBox, value: str, fallback: str):
+        """コンボボックスをdata値で安全に設定する。"""
+        index = combo.findData(value)
+        if index < 0:
+            index = combo.findData(fallback)
+        if index >= 0:
+            combo.setCurrentIndex(index)
+
+    def _update_project_label(self):
+        """現在開いているプロジェクト名を画面上に表示する。"""
+        if self.current_project_path:
+            name = os.path.basename(self.current_project_path)
+            self.project_label.setText(f"プロジェクト: {name}")
+            self.project_label.setToolTip(self.current_project_path)
+        else:
+            self.project_label.setText("未保存のプロジェクト")
+            self.project_label.setToolTip("")
+
+    def _on_save_project(self):
+        """現在の生成設定を .slideshow.json として保存する。"""
+        default_path = (
+            self.current_project_path
+            or project_default_path(self.folder_edit.text().strip())
+            or os.path.join(os.path.expanduser("~"), "slideshow_project" + PROJECT_FILE_EXTENSION)
+        )
+        path, _ = QFileDialog.getSaveFileName(
+            self, "プロジェクトを保存", default_path, get_project_file_filter()
+        )
+        if not path:
+            return
+        if not path.lower().endswith(PROJECT_FILE_EXTENSION):
+            path += PROJECT_FILE_EXTENSION
+
+        if os.path.exists(path) and os.path.abspath(path) != os.path.abspath(self.current_project_path or ""):
+            reply = QMessageBox.question(
+                self, "確認", f"プロジェクトファイルが既に存在します:\n{path}\n\n上書きしますか？",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+            )
+            if reply != QMessageBox.Yes:
+                return
+
+        try:
+            saved_path = save_project_file(path, self._collect_project_settings())
+            self.current_project_path = saved_path
+            self._update_project_label()
+            self._log(f"プロジェクトを保存: {saved_path}")
+            self.status_label.setText(f"プロジェクトを保存しました: {os.path.basename(saved_path)}")
+        except (ProjectFileError, OSError) as e:
+            QMessageBox.critical(self, "保存エラー", f"プロジェクトを保存できませんでした:\n{e}")
+
+    def _apply_project_settings(self, settings: dict):
+        """読込済みのプロジェクト設定をUIへ反映する。"""
+        self.folder_edit.setText(settings["input_folder"])
+        self.scan_btn.setEnabled(bool(settings["input_folder"]))
+        self.output_edit.setText(settings["output_path"])
+
+        preset_name = settings["preset_name"]
+        if preset_name in RESOLUTION_PRESETS:
+            self.preset_combo.setCurrentText(preset_name)
+        else:
+            self.preset_combo.setCurrentText(DEFAULT_PRESET)
+        self.ken_burns_check.setChecked(settings["ken_burns"])
+        self.title_overlay_check.setChecked(settings["title_overlay"])
+
+        self._set_combo_data(self.viz_style_combo, settings["visualizer_style"], "waveform")
+        self.viz_height_spin.setValue(settings["visualizer_height"])
+        self.viz_opacity_spin.setValue(settings["visualizer_opacity_percent"])
+        self._set_combo_data(self.viz_color_mode_combo, settings["visualizer_color_mode"], "solid")
+        self._viz_color_value = settings["visualizer_color"]
+        self._update_viz_color_btn()
+        self.viz_check.setChecked(settings["visualizer_enabled"])
+        self._on_viz_check_changed(Qt.Checked if settings["visualizer_enabled"] else Qt.Unchecked)
+
+        # BGMファイルパスを先に復元してから有効化し、自動検出で上書きしないようにする
+        self.bgm_edit.setText(settings["bgm_path"])
+        self.voice_vol_spin.setValue(settings["voice_volume"])
+        self.bgm_vol_spin.setValue(settings["bgm_volume"])
+        self.bgm_offset_spin.setValue(settings["bgm_start_offset"])
+        self.bgm_fadein_spin.setValue(settings["bgm_fade_in"])
+        self.bgm_fadeout_spin.setValue(settings["bgm_fade_out"])
+        self.bgm_check.setChecked(settings["bgm_enabled"])
+        self._on_bgm_check_changed(Qt.Checked if settings["bgm_enabled"] else Qt.Unchecked)
+
+    def _on_load_project(self):
+        """.slideshow.jsonを読み込み、設定を復元して入力フォルダを再スキャンする。"""
+        default_dir = os.path.dirname(self.current_project_path) if self.current_project_path else os.path.expanduser("~")
+        path, _ = QFileDialog.getOpenFileName(
+            self, "プロジェクトを読込", default_dir, get_project_file_filter()
+        )
+        if not path:
+            return
+
+        try:
+            settings = load_project_file(path)
+            self._apply_project_settings(settings)
+            self.current_project_path = os.path.abspath(path)
+            self._update_project_label()
+            self._log(f"プロジェクトを読込: {self.current_project_path}")
+
+            folder = settings["input_folder"]
+            if folder and os.path.isdir(folder):
+                self._on_scan()
+            else:
+                self.scan_result = None
+                self.pairs_table.setRowCount(0)
+                self.generate_btn.setEnabled(False)
+                self.summary_label.setText("入力フォルダが見つかりません。フォルダを選択し直してからスキャンしてください。")
+                self.summary_label.setStyleSheet("color: #c50f1f; font-size: 12px; font-weight: bold;")
+                if folder:
+                    self._log(f"警告: 入力フォルダが見つかりません: {folder}")
+                    QMessageBox.warning(
+                        self, "入力フォルダが見つかりません",
+                        "プロジェクト設定は読み込みましたが、入力フォルダが見つかりません。\n"
+                        "フォルダを選択し直してからスキャンしてください。",
+                    )
+
+            if settings["bgm_enabled"] and settings["bgm_path"] and not os.path.isfile(settings["bgm_path"]):
+                self._log(f"警告: BGMファイルが見つかりません: {settings['bgm_path']}")
+        except (ProjectFileError, OSError) as e:
+            QMessageBox.critical(self, "読込エラー", f"プロジェクトを読み込めませんでした:\n{e}")
 
     def _on_browse_folder(self):
         folder = QFileDialog.getExistingDirectory(

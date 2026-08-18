@@ -1123,6 +1123,124 @@ def test_cli_bgm_option():
     print("  [PASS] CLI BGM option")
 
 
+def test_cli_executable_mode_detection():
+    """Test SlideshowMakerCLI.exe selects CLI mode without --cli."""
+    print("\n=== CLI executable mode detection test ===")
+    import main
+    from unittest.mock import patch
+
+    with patch.object(main.sys, "argv", ["SlideshowMakerCLI.exe", "--help"]), \
+         patch.object(main.sys, "executable", "/tmp/SlideshowMakerCLI.exe"), \
+         patch.object(main.sys, "frozen", True, create=True):
+        assert main.is_cli_mode() is True
+
+    with patch.object(main.sys, "argv", ["SlideshowMaker.exe"]), \
+         patch.object(main.sys, "executable", "/tmp/SlideshowMaker.exe"), \
+         patch.object(main.sys, "frozen", True, create=True):
+        assert main.is_cli_mode() is False
+    print("  [PASS] GUI/CLI executable mode detection")
+
+
+def test_project_file_round_trip():
+    """Test project settings are saved, loaded and relative paths are restored."""
+    print("\n=== Project file round-trip test ===")
+    from project_manager import (
+        PROJECT_FILE_EXTENSION, load_project_file, save_project_file,
+    )
+
+    tmp = tempfile.mkdtemp()
+    try:
+        media_dir = os.path.join(tmp, "media")
+        os.makedirs(media_dir)
+        project_path = os.path.join(tmp, "my_video" + PROJECT_FILE_EXTENSION)
+        settings = {
+            "input_folder": media_dir,
+            "output_path": os.path.join(media_dir, "render.mp4"),
+            "preset_name": "1080p 横型 (YouTube/一般)",
+            "ken_burns": True,
+            "title_overlay": False,
+            "visualizer_enabled": True,
+            "visualizer_style": "spectrum",
+            "visualizer_height": 140,
+            "visualizer_opacity_percent": 75,
+            "visualizer_color_mode": "rainbow",
+            "visualizer_color": "#ff00ff",
+            "bgm_enabled": True,
+            "bgm_path": os.path.join(media_dir, "_bgm.mp3"),
+            "voice_volume": 1.2,
+            "bgm_volume": 0.35,
+            "bgm_start_offset": 4.0,
+            "bgm_fade_in": 1.5,
+            "bgm_fade_out": 3.0,
+        }
+        saved_path = save_project_file(project_path, settings)
+        assert os.path.isfile(saved_path), "Project file was not created"
+
+        with open(saved_path, "r", encoding="utf-8") as file:
+            payload = json.load(file)
+        assert payload["settings"]["input_folder"] == "media", payload
+        assert payload["settings"]["bgm_path"] == os.path.join("media", "_bgm.mp3"), payload
+
+        loaded = load_project_file(saved_path)
+        assert loaded["input_folder"] == media_dir
+        assert loaded["output_path"] == os.path.join(media_dir, "render.mp4")
+        assert loaded["title_overlay"] is False
+        assert loaded["visualizer_style"] == "spectrum"
+        assert loaded["visualizer_color_mode"] == "rainbow"
+        assert loaded["bgm_path"] == os.path.join(media_dir, "_bgm.mp3")
+        assert abs(loaded["bgm_volume"] - 0.35) < 0.001
+        print("  [PASS] Project file round-trip and relative path restore")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_project_file_validation():
+    """Test malformed project files are rejected and numeric values are clamped."""
+    print("\n=== Project file validation test ===")
+    from project_manager import (
+        PROJECT_FILE_EXTENSION, PROJECT_FORMAT, PROJECT_VERSION,
+        ProjectFileError, load_project_file,
+    )
+
+    tmp = tempfile.mkdtemp()
+    try:
+        invalid_path = os.path.join(tmp, "invalid" + PROJECT_FILE_EXTENSION)
+        with open(invalid_path, "w", encoding="utf-8") as file:
+            json.dump({"format": "Other App", "version": 1, "settings": {}}, file)
+        try:
+            load_project_file(invalid_path)
+            assert False, "Wrong project format should raise ProjectFileError"
+        except ProjectFileError:
+            pass
+
+        clamp_path = os.path.join(tmp, "clamp" + PROJECT_FILE_EXTENSION)
+        with open(clamp_path, "w", encoding="utf-8") as file:
+            json.dump({
+                "format": PROJECT_FORMAT,
+                "version": PROJECT_VERSION,
+                "settings": {
+                    "visualizer_height": 999,
+                    "visualizer_opacity_percent": -5,
+                    "voice_volume": 3.0,
+                    "bgm_volume": -1.0,
+                    "bgm_start_offset": -2.0,
+                    "bgm_fade_in": 999.0,
+                    "bgm_fade_out": -4.0,
+                },
+            }, file)
+        loaded = load_project_file(clamp_path)
+        assert loaded["visualizer_height"] == 400
+        assert loaded["visualizer_opacity_percent"] == 10
+        assert loaded["voice_volume"] == 2.0
+        assert loaded["bgm_volume"] == 0.0
+        assert loaded["bgm_start_offset"] == 0.0
+        assert loaded["bgm_fade_in"] == 30.0
+        assert loaded["bgm_fade_out"] == 0.0
+        print("  [PASS] Project file validation and numeric clamping")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 if __name__ == '__main__':
     # Telop tests
     test_telop_parser_basic()
@@ -1160,4 +1278,8 @@ if __name__ == '__main__':
     test_bgm_mix_video()
     test_file_scanner_bgm_exclusion()
     test_cli_bgm_option()
+    # Project save/load tests
+    test_cli_executable_mode_detection()
+    test_project_file_round_trip()
+    test_project_file_validation()
     print("\n[ALL TESTS PASSED]")
