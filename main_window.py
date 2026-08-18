@@ -861,6 +861,32 @@ class MainWindow(QMainWindow):
         """一括出力を開始する。既存の完了・エラー状態は再実行対象として待機に戻す。"""
         if not self.output_queue.items:
             return
+
+        # 単体出力と同様に、既存の出力ファイルは開始前に一度だけ確認する。
+        existing_outputs = []
+        for item in self.output_queue.items:
+            settings = item.settings
+            input_folder = str(settings.get("input_folder", "") or "")
+            output_path = str(settings.get("output_path", "") or "")
+            if not output_path and input_folder:
+                output_path = os.path.join(input_folder, OUTPUT_FILENAME)
+            if output_path and os.path.isfile(output_path):
+                existing_outputs.append(output_path)
+        if existing_outputs:
+            preview = "\n".join(existing_outputs[:5])
+            remaining = len(existing_outputs) - 5
+            if remaining > 0:
+                preview += f"\n...ほか {remaining}件"
+            reply = QMessageBox.question(
+                self, "出力ファイルの上書き確認",
+                f"既に存在する出力ファイルが {len(existing_outputs)}件あります。\n"
+                f"一括出力では、以下のファイルを上書きします。\n\n{preview}\n\n"
+                "続行しますか？",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+            )
+            if reply != QMessageBox.Yes:
+                return
+
         self.output_queue.reset_for_run()
         self.queue_active = True
         self.progress_bar.setValue(0)
