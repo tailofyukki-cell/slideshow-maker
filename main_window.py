@@ -21,7 +21,8 @@ from timing_parser import find_timing_file, get_timing_summary
 from video_generator import (
     generate_video, GenerationConfig, OUTPUT_FILENAME,
     RESOLUTION_PRESETS, DEFAULT_PRESET, VIZUALIZER_STYLES, VIZUALIZER_COLOR_MODES,
-    find_folder_bgm,
+    LOUDNESS_PRESETS, DEFAULT_LOUDNESS_PRESET, DEFAULT_LOUDNESS_TARGET,
+    DEFAULT_LOUDNESS_TRUE_PEAK, find_folder_bgm,
 )
 from project_manager import (
     PROJECT_FILE_EXTENSION, ProjectFileError,
@@ -336,6 +337,54 @@ class MainWindow(QMainWindow):
         bgm_row2.addStretch()
         output_vbox.addLayout(bgm_row2)
 
+        # ---- ラウドネス正規化行 ----
+        loudness_row = QHBoxLayout()
+        self.loudness_check = QCheckBox("音量を正規化する（ラウドネス調整）")
+        self.loudness_check.setChecked(False)
+        self.loudness_check.setToolTip(
+            "動画の最終音声を目標ラウドネスへ整え、音量差と音割れを抑えます。\n"
+            "BGMを使う場合も、ミックス後の音声全体へ適用されます。"
+        )
+        self.loudness_check.stateChanged.connect(self._on_loudness_check_changed)
+        loudness_row.addWidget(self.loudness_check)
+        loudness_row.addWidget(QLabel("用途:"))
+        self.loudness_preset_combo = QComboBox()
+        for key, (label, _target) in LOUDNESS_PRESETS.items():
+            self.loudness_preset_combo.addItem(label, key)
+        self.loudness_preset_combo.addItem("カスタム", "custom")
+        self.loudness_preset_combo.setCurrentIndex(
+            self.loudness_preset_combo.findData(DEFAULT_LOUDNESS_PRESET)
+        )
+        self.loudness_preset_combo.setMinimumWidth(220)
+        self.loudness_preset_combo.setEnabled(False)
+        self.loudness_preset_combo.currentIndexChanged.connect(self._on_loudness_preset_changed)
+        loudness_row.addWidget(self.loudness_preset_combo)
+        loudness_row.addWidget(QLabel("目標:"))
+        self.loudness_target_spin = QDoubleSpinBox()
+        self.loudness_target_spin.setRange(-30.0, -5.0)
+        self.loudness_target_spin.setValue(DEFAULT_LOUDNESS_TARGET)
+        self.loudness_target_spin.setSingleStep(1.0)
+        self.loudness_target_spin.setDecimals(1)
+        self.loudness_target_spin.setSuffix(" LUFS")
+        self.loudness_target_spin.setFixedWidth(100)
+        self.loudness_target_spin.setEnabled(False)
+        self.loudness_target_spin.setToolTip("統合ラウドネスの目標値。値が高いほど大きい音になります。")
+        self.loudness_target_spin.valueChanged.connect(self._on_loudness_target_changed)
+        loudness_row.addWidget(self.loudness_target_spin)
+        loudness_row.addWidget(QLabel("True Peak:"))
+        self.loudness_peak_spin = QDoubleSpinBox()
+        self.loudness_peak_spin.setRange(-9.0, 0.0)
+        self.loudness_peak_spin.setValue(DEFAULT_LOUDNESS_TRUE_PEAK)
+        self.loudness_peak_spin.setSingleStep(0.5)
+        self.loudness_peak_spin.setDecimals(1)
+        self.loudness_peak_spin.setSuffix(" dBTP")
+        self.loudness_peak_spin.setFixedWidth(100)
+        self.loudness_peak_spin.setEnabled(False)
+        self.loudness_peak_spin.setToolTip("ピーク音量の上限。-1.5 dBTPは一般的な安全余裕です。")
+        loudness_row.addWidget(self.loudness_peak_spin)
+        loudness_row.addStretch()
+        output_vbox.addLayout(loudness_row)
+
         # 出力先行
         dest_row = QHBoxLayout()
         dest_row.addWidget(QLabel("出力先:"))
@@ -586,6 +635,11 @@ class MainWindow(QMainWindow):
             "bgm_start_offset": self.bgm_offset_spin.value(),
             "bgm_fade_in": self.bgm_fadein_spin.value(),
             "bgm_fade_out": self.bgm_fadeout_spin.value(),
+            "loudness_normalization": self.loudness_check.isChecked(),
+            "loudness_preset": self.loudness_preset_combo.currentData() or DEFAULT_LOUDNESS_PRESET,
+            "loudness_target_lufs": self.loudness_target_spin.value(),
+            "loudness_true_peak": self.loudness_peak_spin.value(),
+            "loudness_lra": 11.0,
         }
 
     def _set_combo_data(self, combo: QComboBox, value: str, fallback: str):
@@ -670,6 +724,18 @@ class MainWindow(QMainWindow):
         self.bgm_fadeout_spin.setValue(settings["bgm_fade_out"])
         self.bgm_check.setChecked(settings["bgm_enabled"])
         self._on_bgm_check_changed(Qt.Checked if settings["bgm_enabled"] else Qt.Unchecked)
+
+        self._set_combo_data(
+            self.loudness_preset_combo,
+            settings["loudness_preset"],
+            DEFAULT_LOUDNESS_PRESET,
+        )
+        self.loudness_target_spin.setValue(settings["loudness_target_lufs"])
+        self.loudness_peak_spin.setValue(settings["loudness_true_peak"])
+        self.loudness_check.setChecked(settings["loudness_normalization"])
+        self._on_loudness_check_changed(
+            Qt.Checked if settings["loudness_normalization"] else Qt.Unchecked
+        )
 
     def _on_load_project(self):
         """.slideshow.jsonを読み込み、設定を復元して入力フォルダを再スキャンする。"""
@@ -1237,6 +1303,32 @@ class MainWindow(QMainWindow):
         viz_enabled = self.viz_check.isChecked()
         self.viz_color_btn.setEnabled(viz_enabled and is_solid)
 
+    def _on_loudness_check_changed(self, state: int):
+        """ラウドネス正規化の有効状態に合わせて設定欄を切り替える。"""
+        enabled = (state == Qt.Checked)
+        self.loudness_preset_combo.setEnabled(enabled)
+        self.loudness_target_spin.setEnabled(enabled)
+        self.loudness_peak_spin.setEnabled(enabled)
+
+    def _on_loudness_preset_changed(self, index: int):
+        """用途プリセット選択時に推奨LUFS値をセットする。"""
+        preset = self.loudness_preset_combo.currentData()
+        if preset in LOUDNESS_PRESETS:
+            target = LOUDNESS_PRESETS[preset][1]
+            self.loudness_target_spin.blockSignals(True)
+            self.loudness_target_spin.setValue(target)
+            self.loudness_target_spin.blockSignals(False)
+
+    def _on_loudness_target_changed(self, value: float):
+        """目標LUFSの手入力時はカスタム設定として扱う。"""
+        preset = self.loudness_preset_combo.currentData()
+        if preset in LOUDNESS_PRESETS:
+            preset_value = LOUDNESS_PRESETS[preset][1]
+            if abs(value - preset_value) > 0.01:
+                custom_index = self.loudness_preset_combo.findData("custom")
+                if custom_index >= 0:
+                    self.loudness_preset_combo.setCurrentIndex(custom_index)
+
     def _on_bgm_check_changed(self, state: int):
         """BGMミックスチェックボックス変更時の処理"""
         enabled = (state == 2)  # Qt.Checked == 2
@@ -1365,13 +1457,18 @@ class MainWindow(QMainWindow):
             bgm_start_offset=self.bgm_offset_spin.value() if bgm_enabled else 0.0,
             bgm_fade_in=self.bgm_fadein_spin.value() if bgm_enabled else 1.0,
             bgm_fade_out=self.bgm_fadeout_spin.value() if bgm_enabled else 2.0,
+            loudness_normalization=self.loudness_check.isChecked(),
+            loudness_target_lufs=self.loudness_target_spin.value(),
+            loudness_true_peak=self.loudness_peak_spin.value(),
+            loudness_lra=11.0,
         )
         kb_note = " + ケン・バーンズ効果" if ken_burns else ""
         title_note = " + タイトル表示" if title_overlay else " (タイトル非表示)"
         color_mode_label = VIZUALIZER_COLOR_MODES.get(viz_color_mode, viz_color_mode)
         viz_note = f" + ビジュアライザー({VIZUALIZER_STYLES.get(viz_style, viz_style)}/{color_mode_label})" if viz_enabled else ""
         bgm_note = f" + BGM({os.path.basename(bgm_path_text)}, 音声{config.voice_volume:.1f}x/BGM{config.bgm_volume:.1f}x)" if bgm_enabled and bgm_path_text else ""
-        self._log(f"動画生成開始: {len(pairs)} チャプター | {preset_name} ({w}x{h}){title_note}{kb_note}{viz_note}{bgm_note} → {output_path}")
+        loudness_note = f" + 音量正規化({config.loudness_target_lufs:.1f} LUFS)" if config.loudness_normalization else ""
+        self._log(f"動画生成開始: {len(pairs)} チャプター | {preset_name} ({w}x{h}){title_note}{kb_note}{viz_note}{bgm_note}{loudness_note} → {output_path}")
         self._set_generating_state(True)
 
         self.worker = VideoGeneratorWorker(config)

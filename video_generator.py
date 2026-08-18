@@ -41,6 +41,19 @@ TITLE_FONT_SIZE   = 60
 OUTPUT_FILENAME   = "output.mp4"
 KB_ZOOM_AMOUNT    = 1.08
 
+# --- Loudness normalization ---
+# FFmpeg loudnorm filter parameters. Targets are expressed in LUFS.
+LOUDNESS_PRESETS = {
+    "streaming": ("ストリーミング標準 (-14 LUFS)", -14.0),
+    "voice": ("会話・ナレーション (-16 LUFS)", -16.0),
+    "music": ("音楽（やや大きめ）(-12 LUFS)", -12.0),
+    "broadcast": ("放送向け (-23 LUFS)", -23.0),
+}
+DEFAULT_LOUDNESS_PRESET = "streaming"
+DEFAULT_LOUDNESS_TARGET = LOUDNESS_PRESETS[DEFAULT_LOUDNESS_PRESET][1]
+DEFAULT_LOUDNESS_TRUE_PEAK = -1.5
+DEFAULT_LOUDNESS_LRA = 11.0
+
 
 @dataclass
 class GenerationConfig:
@@ -69,6 +82,11 @@ class GenerationConfig:
     bgm_fade_in: float = 1.0            # BGMフェードイン秒数
     bgm_fade_out: float = 2.0           # BGMフェードアウト秒数
     bgm_start_offset: float = 0.0       # BGM開始オフセット秒数
+    # --- Final audio loudness normalization ---
+    loudness_normalization: bool = False
+    loudness_target_lufs: float = DEFAULT_LOUDNESS_TARGET
+    loudness_true_peak: float = DEFAULT_LOUDNESS_TRUE_PEAK
+    loudness_lra: float = DEFAULT_LOUDNESS_LRA
 
     @property
     def preset_name(self) -> str:
@@ -283,6 +301,42 @@ def mix_bgm_to_video(
     if result.returncode != 0:
         raise RuntimeError(
             f"BGMミックスに失敗しました。\nFFmpegエラー:\n{result.stderr[-2000:]}"
+        )
+
+
+def normalize_audio_loudness(
+    input_video: str,
+    output_video: str,
+    target_lufs: float,
+    true_peak: float,
+    loudness_range: float,
+    ffmpeg_path: str,
+) -> None:
+    """完成動画の音声をFFmpeg loudnormで正規化する。
+
+    映像ストリームは再エンコードせずコピーし、音声のみAACとして再エンコードする。
+    loudnormのlinearモードを使うため、追加の解析パスなしで実行できる。
+    """
+    target_lufs = max(-70.0, min(-5.0, float(target_lufs)))
+    true_peak = max(-9.0, min(0.0, float(true_peak)))
+    loudness_range = max(1.0, min(50.0, float(loudness_range)))
+    audio_filter = (
+        f"loudnorm=I={target_lufs:.1f}:TP={true_peak:.1f}:"
+        f"LRA={loudness_range:.1f}:linear=true:dual_mono=false"
+    )
+    args = [
+        '-y', '-i', input_video,
+        '-filter:a', audio_filter,
+        '-map', '0:v:0', '-map', '0:a:0',
+        '-c:v', 'copy',
+        '-c:a', 'aac', '-b:a', '192k',
+        '-movflags', '+faststart',
+        output_video,
+    ]
+    result = run_ffmpeg(ffmpeg_path, args, timeout=600)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"音量正規化に失敗しました。\nFFmpegエラー:\n{result.stderr[-2000:]}"
         )
 
 
@@ -988,12 +1042,13 @@ def generate_video(
         check_cancel()
         report(85, "チャプターを結合中...")
 
-        # --- 後処理パイプライン: viz -> BGM の順で適用 ---
-        # 後処理が必要かどうかを判定
+        # --- 後処理パイプライン: viz -> BGM -> loudness の順で適用 ---
+        # 音量正規化はBGMミックス後の最終音声へ適用する。
         has_viz = config.visualizer_enabled
         has_bgm = bool(config.bgm_path) and os.path.isfile(config.bgm_path or '')
+        has_loudness = config.loudness_normalization
 
-        if has_viz or has_bgm:
+        if has_viz or has_bgm or has_loudness:
             # まず一時ファイルに結合
             concat_tmp = os.path.join(temp_dir, 'concat_tmp.mp4')
             concatenate_videos(
@@ -1035,6 +1090,20 @@ def generate_video(
                     ffmpeg_path=ffmpeg_path,
                 )
                 current_tmp = bgm_mix_tmp
+
+            # 最終ミックス後の音声をラウドネス正規化
+            if has_loudness:
+                report(97, f"音量を正規化中... (目標 {config.loudness_target_lufs:.1f} LUFS)")
+                loudness_tmp = os.path.join(temp_dir, 'loudness_tmp.mp4')
+                normalize_audio_loudness(
+                    input_video=current_tmp,
+                    output_video=loudness_tmp,
+                    target_lufs=config.loudness_target_lufs,
+                    true_peak=config.loudness_true_peak,
+                    loudness_range=config.loudness_lra,
+                    ffmpeg_path=ffmpeg_path,
+                )
+                current_tmp = loudness_tmp
 
             # 最終出力先にコピー
             shutil.copy2(current_tmp, config.output_path)

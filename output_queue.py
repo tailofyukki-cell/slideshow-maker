@@ -126,6 +126,10 @@ def prepare_queue_job(item: QueueItem) -> PreparedQueueJob:
         bgm_start_offset=float(settings.get("bgm_start_offset", 0.0)),
         bgm_fade_in=float(settings.get("bgm_fade_in", 1.0)),
         bgm_fade_out=float(settings.get("bgm_fade_out", 2.0)),
+        loudness_normalization=bool(settings.get("loudness_normalization", False)),
+        loudness_target_lufs=float(settings.get("loudness_target_lufs", -14.0)),
+        loudness_true_peak=float(settings.get("loudness_true_peak", -1.5)),
+        loudness_lra=float(settings.get("loudness_lra", 11.0)),
     )
     item.output_path = output_path
     return PreparedQueueJob(

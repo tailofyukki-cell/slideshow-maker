@@ -991,6 +991,38 @@ def test_cli_generate():
         print("  [PASS] CLI generate test")
 
 
+def test_cli_loudness_generate():
+    """Test CLI generates a video with final loudness normalization enabled."""
+    print("\n=== CLI loudness generate test ===")
+    from cli import build_parser, run_cli
+    import io
+    from contextlib import redirect_stdout
+
+    if not FFMPEG:
+        print("  SKIP: ffmpeg not found")
+        return
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        make_audio(tmpdir, "loud_cli", duration=2)
+        make_image(tmpdir, "loud_cli", color="yellow")
+        output_path = os.path.join(tmpdir, "loud_cli_out.mp4")
+        parser = build_parser()
+        args = parser.parse_args([
+            "--cli", "--input", tmpdir, "--output", output_path,
+            "--width", "320", "--height", "240", "--no-title",
+            "--loudness", "music", "--true-peak", "-2.0",
+        ])
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = run_cli(args)
+        output = buf.getvalue()
+        assert code == 0, f"Expected exit 0, got {code}\nOutput:\n{output}"
+        assert os.path.isfile(output_path), "CLI loudness output not created"
+        assert os.path.getsize(output_path) > 10000, "CLI loudness output too small"
+        assert "Loudness" in output, f"Expected loudness summary in output: {output}"
+        print(f"  [PASS] CLI loudness generation ({os.path.getsize(output_path):,} bytes)")
+
+
 def test_cli_no_input_error():
     """Test CLI returns error when --input is missing."""
     print("\n=== CLI no-input error test ===")
@@ -1123,6 +1155,57 @@ def test_cli_bgm_option():
     print("  [PASS] CLI BGM option")
 
 
+def test_loudness_normalization_video():
+    """Test final video audio is processed through the loudnorm pipeline."""
+    print("\n=== Loudness normalization video test ===")
+    if not FFMPEG:
+        print("  [SKIP] FFmpeg not found")
+        return
+    from video_generator import GenerationConfig, generate_video
+    from file_scanner import FilePair
+
+    tmp = tempfile.mkdtemp()
+    try:
+        audio_path = make_audio(tmp, "loud_track", ext=".wav", duration=3)
+        image_path = make_image(tmp, "loud_track", color="orange")
+        output_path = os.path.join(tmp, "loud_output.mp4")
+        pair = FilePair(base_name="loud_track", audio_path=audio_path, image_path=image_path)
+        config = GenerationConfig(
+            pairs=[pair], output_path=output_path, width=320, height=240,
+            loudness_normalization=True,
+            loudness_target_lufs=-14.0,
+            loudness_true_peak=-1.5,
+            loudness_lra=11.0,
+        )
+        generate_video(config=config)
+        assert os.path.isfile(output_path), "Loudness-normalized output not created"
+        assert os.path.getsize(output_path) > 10000, "Loudness-normalized output too small"
+        print(f"  [PASS] Loudness-normalized video ({os.path.getsize(output_path):,} bytes)")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_cli_loudness_options():
+    """Test CLI loudness preset and custom LUFS options."""
+    print("\n=== CLI loudness option test ===")
+    from cli import build_parser
+
+    parser = build_parser()
+    preset_args = parser.parse_args([
+        "--cli", "--input", "/tmp/test", "--loudness", "music",
+        "--true-peak", "-2.0", "--loudness-range", "8.0",
+    ])
+    assert preset_args.loudness == "music"
+    assert abs(preset_args.true_peak + 2.0) < 0.001
+    assert abs(preset_args.loudness_range - 8.0) < 0.001
+    custom_args = parser.parse_args([
+        "--cli", "--input", "/tmp/test", "--lufs", "-15.0",
+    ])
+    assert custom_args.loudness is None
+    assert abs(custom_args.lufs + 15.0) < 0.001
+    print("  [PASS] CLI loudness options")
+
+
 def test_output_queue_state_management():
     """Test OutputQueue add, order, stop request and status accounting."""
     print("\n=== Output queue state-management test ===")
@@ -1181,6 +1264,10 @@ def test_output_queue_project_preparation():
             "visualizer_style": "waveform",
             "visualizer_height": 100,
             "visualizer_opacity_percent": 70,
+            "loudness_normalization": True,
+            "loudness_preset": "voice",
+            "loudness_target_lufs": -16.0,
+            "loudness_true_peak": -1.5,
         })
         item = QueueItem.from_project_file(project_path)
         job = prepare_queue_job(item)
@@ -1189,7 +1276,53 @@ def test_output_queue_project_preparation():
         assert job.config.title_overlay is False
         assert job.config.visualizer_enabled is True
         assert job.config.visualizer_height == 100
+        assert job.config.loudness_normalization is True
+        assert abs(job.config.loudness_target_lufs + 16.0) < 0.001
         print("  [PASS] Output queue project preparation")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_project_queue_loudness_end_to_end():
+    """Test one saved project flows through the queue into loudness-normalized output."""
+    print("\n=== Project + queue + loudness end-to-end test ===")
+    if not FFMPEG:
+        print("  [SKIP] FFmpeg not found")
+        return
+    from output_queue import QueueItem, prepare_queue_job
+    from project_manager import PROJECT_FILE_EXTENSION, save_project_file
+    from video_generator import generate_video
+
+    tmp = tempfile.mkdtemp()
+    try:
+        media_dir = os.path.join(tmp, "album_track")
+        os.makedirs(media_dir)
+        make_audio(media_dir, "song", ext=".wav", duration=3)
+        make_image(media_dir, "song", color="teal")
+        output_path = os.path.join(media_dir, "final.mp4")
+        project_path = os.path.join(tmp, "song" + PROJECT_FILE_EXTENSION)
+        save_project_file(project_path, {
+            "input_folder": media_dir,
+            "output_path": output_path,
+            "preset_name": "1080p 横型 (YouTube/一般)",
+            "title_overlay": False,
+            "loudness_normalization": True,
+            "loudness_preset": "streaming",
+            "loudness_target_lufs": -14.0,
+            "loudness_true_peak": -1.5,
+            "loudness_lra": 11.0,
+        })
+        item = QueueItem.from_project_file(project_path)
+        job = prepare_queue_job(item)
+        assert job.config.loudness_normalization is True
+        assert job.config.output_path == output_path
+        # キュー設定の復元を確認した後、CI向けに低解像度へ下げて高速化する。
+        job.config.width = 320
+        job.config.height = 240
+        generate_video(job.config)
+        assert os.path.isfile(output_path), "Queue-driven loudness output not created"
+        assert os.path.getsize(output_path) > 10000, "Queue-driven output too small"
+        print(f"  [PASS] Project + queue + loudness ({os.path.getsize(output_path):,} bytes)")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -1243,6 +1376,11 @@ def test_project_file_round_trip():
             "bgm_start_offset": 4.0,
             "bgm_fade_in": 1.5,
             "bgm_fade_out": 3.0,
+            "loudness_normalization": True,
+            "loudness_preset": "music",
+            "loudness_target_lufs": -12.0,
+            "loudness_true_peak": -2.0,
+            "loudness_lra": 8.0,
         }
         saved_path = save_project_file(project_path, settings)
         assert os.path.isfile(saved_path), "Project file was not created"
@@ -1260,6 +1398,10 @@ def test_project_file_round_trip():
         assert loaded["visualizer_color_mode"] == "rainbow"
         assert loaded["bgm_path"] == os.path.join(media_dir, "_bgm.mp3")
         assert abs(loaded["bgm_volume"] - 0.35) < 0.001
+        assert loaded["loudness_normalization"] is True
+        assert loaded["loudness_preset"] == "music"
+        assert abs(loaded["loudness_target_lufs"] + 12.0) < 0.001
+        assert abs(loaded["loudness_true_peak"] + 2.0) < 0.001
         print("  [PASS] Project file round-trip and relative path restore")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -1342,6 +1484,7 @@ if __name__ == '__main__':
     test_cli_list_presets()
     test_cli_dry_run()
     test_cli_generate()
+    test_cli_loudness_generate()
     test_cli_no_input_error()
     # BGM tests
     test_find_folder_bgm()
@@ -1349,9 +1492,12 @@ if __name__ == '__main__':
     test_bgm_mix_video()
     test_file_scanner_bgm_exclusion()
     test_cli_bgm_option()
-    # Project save/load and output queue tests
+    # Loudness, project save/load and output queue integration tests
+    test_loudness_normalization_video()
+    test_cli_loudness_options()
     test_output_queue_state_management()
     test_output_queue_project_preparation()
+    test_project_queue_loudness_end_to_end()
     test_cli_executable_mode_detection()
     test_project_file_round_trip()
     test_project_file_validation()

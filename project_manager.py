@@ -30,6 +30,11 @@ DEFAULT_PROJECT_SETTINGS: Dict[str, Any] = {
     "bgm_start_offset": 0.0,
     "bgm_fade_in": 1.0,
     "bgm_fade_out": 2.0,
+    "loudness_normalization": False,
+    "loudness_preset": "streaming",
+    "loudness_target_lufs": -14.0,
+    "loudness_true_peak": -1.5,
+    "loudness_lra": 11.0,
 }
 
 
@@ -121,6 +126,7 @@ def _normalise_settings(raw_settings: Any, project_dir: str) -> Dict[str, Any]:
         "title_overlay",
         "visualizer_enabled",
         "bgm_enabled",
+        "loudness_normalization",
     ):
         settings[key] = _coerce_bool(raw_settings.get(key, settings[key]), settings[key])
 
@@ -157,6 +163,21 @@ def _normalise_settings(raw_settings: Any, project_dir: str) -> Dict[str, Any]:
     )
     settings["bgm_fade_out"] = _coerce_number(
         raw_settings.get("bgm_fade_out", settings["bgm_fade_out"]), 2.0, 0.0, 30.0
+    )
+    loudness_preset = raw_settings.get("loudness_preset", settings["loudness_preset"])
+    if isinstance(loudness_preset, str):
+        settings["loudness_preset"] = loudness_preset
+    settings["loudness_target_lufs"] = _coerce_number(
+        raw_settings.get("loudness_target_lufs", settings["loudness_target_lufs"]),
+        -14.0, -30.0, -5.0,
+    )
+    settings["loudness_true_peak"] = _coerce_number(
+        raw_settings.get("loudness_true_peak", settings["loudness_true_peak"]),
+        -1.5, -9.0, 0.0,
+    )
+    settings["loudness_lra"] = _coerce_number(
+        raw_settings.get("loudness_lra", settings["loudness_lra"]),
+        11.0, 1.0, 50.0,
     )
 
     return settings

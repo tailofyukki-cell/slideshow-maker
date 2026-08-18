@@ -190,6 +190,42 @@ Examples:
         help="BGM fade-out duration in seconds (default: 2.0)",
     )
 
+    # Loudness normalization
+    loudness_group = parser.add_argument_group("Loudness Normalization")
+    loudness_group.add_argument(
+        "--loudness",
+        nargs="?",
+        const="streaming",
+        default=None,
+        choices=["streaming", "voice", "music", "broadcast"],
+        metavar="PRESET",
+        help=(
+            "Enable final audio loudness normalization. Presets: streaming, voice, "
+            "music, broadcast. Without PRESET, uses streaming (-14 LUFS)."
+        ),
+    )
+    loudness_group.add_argument(
+        "--lufs",
+        type=float,
+        default=None,
+        metavar="TARGET",
+        help="Custom loudness target in LUFS; also enables normalization (range: -30 to -5).",
+    )
+    loudness_group.add_argument(
+        "--true-peak",
+        type=float,
+        default=-1.5,
+        metavar="DBTP",
+        help="Maximum true peak in dBTP (default: -1.5).",
+    )
+    loudness_group.add_argument(
+        "--loudness-range",
+        type=float,
+        default=11.0,
+        metavar="LU",
+        help="Target loudness range in LU (default: 11).",
+    )
+
     # Utility
     util_group = parser.add_argument_group("Utility")
     util_group.add_argument(
@@ -219,7 +255,7 @@ def run_cli(args: argparse.Namespace) -> int:
     from video_generator import (
         generate_video, GenerationConfig,
         RESOLUTION_PRESETS, DEFAULT_PRESET, OUTPUT_FILENAME,
-        find_folder_bgm,
+        LOUDNESS_PRESETS, find_folder_bgm,
     )
     from file_scanner import scan_folder
 
@@ -315,6 +351,12 @@ def run_cli(args: argparse.Namespace) -> int:
         if bgm_path:
             print(f"Auto-detected BGM: {os.path.basename(bgm_path)}")
 
+    # Loudness normalization configuration
+    loudness_enabled = (args.loudness is not None or args.lufs is not None)
+    loudness_preset = args.loudness or "streaming"
+    preset_target = LOUDNESS_PRESETS[loudness_preset][1]
+    loudness_target = args.lufs if args.lufs is not None else preset_target
+
     # Build config
     config = GenerationConfig(
         pairs=pairs,
@@ -336,6 +378,10 @@ def run_cli(args: argparse.Namespace) -> int:
         bgm_start_offset=max(0.0, args.bgm_offset),
         bgm_fade_in=max(0.0, args.bgm_fade_in),
         bgm_fade_out=max(0.0, args.bgm_fade_out),
+        loudness_normalization=loudness_enabled,
+        loudness_target_lufs=max(-30.0, min(-5.0, loudness_target)),
+        loudness_true_peak=max(-9.0, min(0.0, args.true_peak)),
+        loudness_lra=max(1.0, min(50.0, args.loudness_range)),
     )
 
     # Print config summary
@@ -354,6 +400,10 @@ def run_cli(args: argparse.Namespace) -> int:
               f"(voice={config.voice_volume:.1f}x, bgm={config.bgm_volume:.1f}x, "
               f"offset={config.bgm_start_offset:.1f}s, "
               f"fade-in={config.bgm_fade_in:.1f}s, fade-out={config.bgm_fade_out:.1f}s)")
+    if config.loudness_normalization:
+        print(f"  Loudness     : {config.loudness_target_lufs:.1f} LUFS "
+              f"(true peak={config.loudness_true_peak:.1f} dBTP, "
+              f"range={config.loudness_lra:.1f} LU)")
     print()
 
     # Check output path
